@@ -14,7 +14,7 @@ Google API Documents Chinese Documents
 10. [版本管理](#10-Versioning)
 11. [兼容性](#11-Compatibility)
 12. [目录结构](#12-Directory-Structure)
-13. [文件结构](#13-File-Structure)
+13. [文件结构 grpc]()
 
 
 
@@ -1303,5 +1303,5 @@ get: "/v3/events:batchGet"
 *   {subapi}/v[0-9]*/*<span style="font-size: 15px; color: rgb(51, 51, 51);">：每一个 </span>{subapi}<span style="font-size: 15px; color: rgb(51, 51, 51);"> 目录包含子 API 的接口定义。每个子 API 可以有它独立的主版本号</span>
 *   type/*<span style="font-size: 15px; color: rgb(51, 51, 51);">： 包含类型定义的原型文件，包括这些：在不同 API 间共享的类型、不同 API 版本间共享的类型或 API 与服务实现间共享的类型。一旦发布，</span>type/*<span style="font-size: 15px; color: rgb(51, 51, 51);"> 中定义的类型 </span><span style="font-size: 15px; color: rgb(51, 51, 51);">不应该（should not）</span><span style="font-size: 15px; color: rgb(51, 51, 51);"> 有破坏兼容性的修改。</span>
 
-<h1 id="13-File-Structure"><code>文件结构</code></h1>
+
 

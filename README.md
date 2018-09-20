@@ -8,13 +8,13 @@ Google API Documents Chinese Documents
 4. [标准方法](#4-Standard-Methods)
 5. [自定义方法](#5-Custom-Methods)
 6. [错误处理](#6-Errors)
-7. [命名规范](#7Naming-Conventions)
-8. [设计模式](#8Common-Design-Patterns)
-9. [使用 Proto3](#9Protocol-Buffers-v3)
-10. [版本管理](#10Versioning)
-11. [兼容性](#11Compatibility)
-12. [目录结构](#12Directory-Structure)
-13. [文件结构](#13File-Structure)
+7. [命名规范](#7-Naming-Conventions)
+8. [设计模式](#8-Common-Design-Patterns)
+9. [使用 Proto3](#9-Protocol-Buffers-v3)
+10. [版本管理](#10-Versioning)
+11. [兼容性](#11-Compatibility)
+12. [目录结构](#12-Directory-Structure)
+13. [文件结构](#13-File-Structure)
 
 
 
@@ -461,3 +461,11 @@ get: "/v3/events:batchGet"
 | <span style="color: rgb(0, 0, 0);">Search</span> | <span style="color: rgb(0, 0, 0);">:search</span> | <span style="color: rgb(0, 0, 0);">GET</span> | <span style="color: rgb(0, 0, 0);">用于获取不符合 List 语义的数据</span> |
 | <span style="color: rgb(0, 0, 0);">Undelete</span> | <span style="color: rgb(0, 0, 0);">:undelete</span> | <span style="color: rgb(0, 0, 0);">POST</span> | <span style="color: rgb(0, 0, 0);">恢复以前删除的资源，推荐的保留期为30天</span> |
 
+<h1 id="6-Errors"><code>错误处理</code></h1>
+<h1 id="7-Naming-Conventions"><code>命名规范</code></h1>
+<h1 id="8-Common-Design-Patterns"><code>设计模式</code></h1>
+<h1 id="9-Protocol-Buffers-v3"><code>使用 proto3</code></h1>
+<h1 id="10-Versioning"><code>版本管理</code></h1>
+<h1 id="11-Compatibility"><code>兼容性</code></h1>
+<h1 id="12-Directory-Structure"><code>目录结构</code></h1>
+<h1 id="13-File-Structure"><code>文件结构</code></h1>

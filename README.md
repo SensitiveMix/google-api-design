@@ -462,9 +462,610 @@ get: "/v3/events:batchGet"
 | <span style="color: rgb(0, 0, 0);">Undelete</span> | <span style="color: rgb(0, 0, 0);">:undelete</span> | <span style="color: rgb(0, 0, 0);">POST</span> | <span style="color: rgb(0, 0, 0);">恢复以前删除的资源，推荐的保留期为30天</span> |
 
 <h1 id="6-Errors"><code>错误处理</code></h1>
+
+[<span style="font-size: 15px; color: rgb(0, 56, 132);">错误处理</span>](https://segmentfault.com/a/1190000008943276) <span style="font-size: 15px; color: rgb(51, 51, 51);">本章简单介绍 Google API 的错误模型以及开发人员如何正确生成和处理错误的一般指导。</span>
+
+<span style="font-size: 15px; color: rgb(51, 51, 51);">Google API 使用了简单的协议无关的错误模型，这允许我们在不同 API，不同协议（例如 gRPC 或 HTTP），不同的错误上下文（如同步、批量处理、工作流错误）中提供相同的使用体验。</span>
+
+<span style="font-size: 28px; color: rgb(51, 51, 51);">错误模型</span>
+
+* * *
+
+<span style="font-size: 15px; color: rgb(51, 51, 51);">错误模型由 </span>[<span style="font-size: 15px; color: rgb(0, 154, 97);">google.rpc.Status</span>](https://github.com/googleapis/googleapis/blob/master/google/rpc/status.proto)<span style="font-size: 15px; color: rgb(51, 51, 51);"> 定义。如下所示：</span>
+
+<span style="font-size: 13px; color: rgb(51, 51, 51);">package google.rpc;message Status {</span> <span style="font-size: 13px; color: rgb(153, 153, 136);">// 容易被客户端处理的简单错误码，实际的错误码定义在`google.rpc.Code`</span> <span style="font-size: 13px; color: rgb(51, 51, 51);">int32 code =</span> <span style="font-size: 13px; color: rgb(0, 128, 128);">1</span><span style="font-size: 13px; color: rgb(51, 51, 51);">;</span> <span style="font-size: 13px; color: rgb(153, 153, 136);">// 易于开发者阅读的错误信息，它应该解释错误并且提供可行的解决方法</span> <span style="font-size: 13px; color: rgb(51, 51, 51);"></span> <span style="font-size: 13px; color: rgb(68, 85, 136);">string</span> <span style="font-size: 13px; color: rgb(51, 51, 51);">message =</span> <span style="font-size: 13px; color: rgb(0, 128, 128);">2</span><span style="font-size: 13px; color: rgb(51, 51, 51);">;</span> <span style="font-size: 13px; color: rgb(153, 153, 136);">// 附加的错误信息，客户端能够通过它处理错误，例如重试的等待时间或者帮助页面链接</span> <span style="font-size: 13px; color: rgb(51, 51, 51);">repeated google.protobuf.Any details =</span> <span style="font-size: 13px; color: rgb(0, 128, 128);">3</span><span style="font-size: 13px; color: rgb(51, 51, 51);">;}</span>
+
+<span style="font-size: 15px; color: rgb(51, 51, 51);">因为大部分 Google API 使用面向资源的设计，所以错误处理通过在大量资源上使用一小组标准错误也遵循了相同的设计原则。例如，服务端使用一个标准的 </span><span style="font-size: 13px; color: rgb(199, 37, 78);">google.rpc.Code.NOT_FOUND</span><span style="font-size: 15px; color: rgb(51, 51, 51);"> 错误码加上特定的资源名来表示“未找到”错误，而不是定义不同种类的“未找到”错误。更少的错误状态减少了文档的复杂性，在客户端的库中提供更好的习惯性映射，在不限制可包含信息的情况下减少了客户端逻辑的复杂性。</span>
+
+<span style="font-size: 28px; color: rgb(51, 51, 51);">错误码</span>
+
+* * *
+
+<span style="font-size: 15px; color: rgb(51, 51, 51);">Google API </span><span style="font-size: 15px; color: rgb(51, 51, 51);">必须（must）</span><span style="font-size: 15px; color: rgb(51, 51, 51);"> 使用 </span>[<span style="font-size: 13px; color: rgb(199, 37, 78);">google.rpc.Code</span>](https://github.com/googleapis/googleapis/blob/master/google/rpc/code.proto)<span style="font-size: 15px; color: rgb(51, 51, 51);"> 中定义的标准错误码。单独的 API </span><span style="font-size: 15px; color: rgb(51, 51, 51);">应该（should）</span><span style="font-size: 15px; color: rgb(51, 51, 51);"> 避免定义附加错误码，因为开发者非常不喜欢为大量错误码编写处理逻辑。作为参考，每个 API 处理平均 3 个错误码意味着大部分程序逻辑在进行错误处理，这并不是好的开发体验。</span>
+
+<span style="font-size: 28px; color: rgb(51, 51, 51);">错误消息</span>
+
+* * *
+
+<span style="font-size: 15px; color: rgb(51, 51, 51);">错误消息应该帮助用户轻松并快速地 </span><span style="font-size: 15px; color: rgb(51, 51, 51);">理解并解决</span><span style="font-size: 15px; color: rgb(51, 51, 51);"> API 错误。通常情况请参考如下规则：</span>
+
+*   不要假设用户非常了解你的 API。用户可能是客户端开发者、运维人员、IT 人员或者 app 的普通用户。
+*   不要假设用户了解服务实现的细节或熟悉错误上下文（例如日志分析）。
+*   如果可能的话，应构建错误消息，以便技术用户（但不一定是 API 的开发人员）可以对错误进行响应并更正。
+*   保持错误信息的简短。如果需要的话，提供链接以便迷惑的用户能够提出问题得到反馈或得到更多信息。否则，请使用 details 字段来扩展错误消息。
+
+<span style="font-size: 28px; color: rgb(51, 51, 51);">错误详情</span>
+
+* * *
+
+<span style="font-size: 15px; color: rgb(51, 51, 51);">Google API 为错误详情定义了一组标准错误负载，可以去 </span>[<span style="font-size: 15px; color: rgb(0, 154, 97);">google/rpc/error_details.proto</span>](https://github.com/googleapis/googleapis/blob/master/google/rpc/error_details.proto)<span style="font-size: 15px; color: rgb(51, 51, 51);"> 查看。这里包含了 API 中最常见的错误，例如达到资源限额和错误的输入参数。与错误码相同，错误详情也应该使用标准的负载。</span>
+
+<span style="font-size: 15px; color: rgb(51, 51, 51);">只有在能够帮助程序代码处理错误时才可以为错误详情引入新的类型。如果错误信息只能够由人（非代码）处理，应当让开发者依赖错误消息的内容来手动处理，而不是引入新的错误详情类型。如果新的类型被引入，一定要为它们进行显式的注册。</span>
+
+<span style="font-size: 15px; color: rgb(51, 51, 51);">这里有一些 </span><span style="font-size: 13px; color: rgb(199, 37, 78);">error_details </span><span style="font-size: 15px; color: rgb(51, 51, 51);">负载的示例：</span>
+
+*   RetryInfo<span style="font-size: 15px; color: rgb(51, 51, 51);"> 描述了当客户端能够重试请求时，可能返回 </span>Code.UNAVAILABLE<span style="font-size: 15px; color: rgb(51, 51, 51);"> 或 </span>Code.ABORTED
+*   QuotaFailure<span style="font-size: 15px; color: rgb(51, 51, 51);"> 描述了配额检查失败的原因，可能返回 </span>Code.RESOURCE_EXHAUSTED
+*   BadRequest<span style="font-size: 15px; color: rgb(51, 51, 51);"> 描述了客户端的非法请求，可能返回 </span>Code.INVALID_ARGUMENT
+
+<span style="font-size: 28px; color: rgb(51, 51, 51);">HTTP 映射</span>
+
+* * *
+
+<span style="font-size: 15px; color: rgb(51, 51, 51);">虽然 proto3 有原生的 JSON 编码，但 Google 的 API 平台使用如下的 JSON 格式进行错误响应，以允许向后兼容：</span>
+
+<span style="font-size: 13px; color: rgb(51, 51, 51);">{</span> <span style="font-size: 13px; color: rgb(221, 17, 68);">"error"</span><span style="font-size: 13px; color: rgb(51, 51, 51);">: {</span> <span style="font-size: 13px; color: rgb(221, 17, 68);">"code"</span><span style="font-size: 13px; color: rgb(51, 51, 51);">:</span> <span style="font-size: 13px; color: rgb(0, 128, 128);">401</span><span style="font-size: 13px; color: rgb(51, 51, 51);">,</span> <span style="font-size: 13px; color: rgb(221, 17, 68);">"message"</span><span style="font-size: 13px; color: rgb(51, 51, 51);">:</span> <span style="font-size: 13px; color: rgb(221, 17, 68);">"Request had invalid credentials."</span><span style="font-size: 13px; color: rgb(51, 51, 51);">,</span> <span style="font-size: 13px; color: rgb(221, 17, 68);">"status"</span><span style="font-size: 13px; color: rgb(51, 51, 51);">:</span> <span style="font-size: 13px; color: rgb(221, 17, 68);">"UNAUTHENTICATED"</span><span style="font-size: 13px; color: rgb(51, 51, 51);">,</span> <span style="font-size: 13px; color: rgb(221, 17, 68);">"details"</span><span style="font-size: 13px; color: rgb(51, 51, 51);">: [{</span> <span style="font-size: 13px; color: rgb(221, 17, 68);">"@type"</span><span style="font-size: 13px; color: rgb(51, 51, 51);">:</span> <span style="font-size: 13px; color: rgb(221, 17, 68);">"type.googleapis.com/google.rpc.RetryInfo"</span><span style="font-size: 13px; color: rgb(51, 51, 51);">, ... }] }}</span>
+
+| <span style="color: rgb(0, 0, 0);">字段</span> | <span style="color: rgb(0, 0, 0);">描述</span> |
+| --- | --- |
+| <span style="color: rgb(0, 0, 0);">error</span> | <span style="color: rgb(0, 0, 0);">为了向后兼容 Google API 客户端库添加的额外层</span> |
+| <span style="color: rgb(0, 0, 0);">code</span> | <span style="color: rgb(0, 0, 0);">Status.code 映射为 HTTP 状态码</span> |
+| <span style="color: rgb(0, 0, 0);">message</span> | <span style="color: rgb(0, 0, 0);">对应 Status.message</span> |
+| <span style="color: rgb(0, 0, 0);">status</span> | <span style="color: rgb(0, 0, 0);">对应 Status.code</span> |
+| <span style="color: rgb(0, 0, 0);">details</span> | <span style="color: rgb(0, 0, 0);">对应 Status.details</span> |
+
+<span style="font-size: 28px; color: rgb(51, 51, 51);">RPC 映射</span>
+
+* * *
+
+<span style="font-size: 15px; color: rgb(51, 51, 51);">不同的 RPC 协议用不同的方法映射到错误模型（error model）。对于 </span>[<span style="font-size: 15px; color: rgb(0, 154, 97);">gRPC</span>](http://grpc.io/)<span style="font-size: 15px; color: rgb(51, 51, 51);">，生成的代码和所有语言的运行库都原生支持错误模型。你可以去 gRPC 的 API 文档中查看详情。</span>
+
+<span style="font-size: 28px; color: rgb(51, 51, 51);">客户端库的映射</span>
+
+* * *
+
+<span style="font-size: 15px; color: rgb(51, 51, 51);">Google 客户端库可能会选择按照不同的惯例来对不同语言进行不同的错误处理。例如，库 </span>[<span style="font-size: 15px; color: rgb(0, 154, 97);">google-cloud-go</span>](https://github.com/GoogleCloudPlatform/google-cloud-go)<span style="font-size: 15px; color: rgb(51, 51, 51);"> 会返回 </span><span style="font-size: 13px; color: rgb(199, 37, 78);">google.rpc.Status</span><span style="font-size: 15px; color: rgb(51, 51, 51);"> 的实例，而 </span>[<span style="font-size: 15px; color: rgb(0, 154, 97);">google-cloud-java</span>](https://github.com/GoogleCloudPlatform/google-cloud-java)<span style="font-size: 15px; color: rgb(51, 51, 51);"> 则会抛出异常。</span>
+
+<span style="font-size: 28px; color: rgb(51, 51, 51);">错误信息本地化</span>
+
+* * *
+
+[<span style="font-size: 13px; color: rgb(199, 37, 78);">google.rpc.Status</span>](https://github.com/googleapis/googleapis/blob/master/google/rpc/status.proto)<span style="font-size: 15px; color: rgb(51, 51, 51);"> 中的 </span><span style="font-size: 13px; color: rgb(199, 37, 78);">message</span><span style="font-size: 15px; color: rgb(51, 51, 51);"> 字段是面向开发者的，</span><span style="font-size: 15px; color: rgb(51, 51, 51);">必须（must）</span><span style="font-size: 15px; color: rgb(51, 51, 51);"> 是英语。</span>
+
+<span style="font-size: 15px; color: rgb(51, 51, 51);">如果需要向用户提供错误信息，请使用 </span>[<span style="font-size: 13px; color: rgb(199, 37, 78);">google.rpc.LocalizedMessage</span>](https://github.com/googleapis/googleapis/blob/master/google/rpc/error_details.proto)<span style="font-size: 15px; color: rgb(51, 51, 51);">作为详情字段。</span>[<span style="font-size: 13px; color: rgb(199, 37, 78);">google.rpc.LocalizedMessage</span>](https://github.com/googleapis/googleapis/blob/master/google/rpc/error_details.proto)<span style="font-size: 15px; color: rgb(51, 51, 51);"> 可以被本地化，但请保证 </span>[<span style="font-size: 13px; color: rgb(199, 37, 78);">google.rpc.Status</span>](https://github.com/googleapis/googleapis/blob/master/google/rpc/status.proto)<span style="font-size: 15px; color: rgb(51, 51, 51);"> 中是英文。</span>
+
+<span style="font-size: 15px; color: rgb(51, 51, 51);">API 服务应该默认使用认证用户的 locale 或 HTTP </span><span style="font-size: 13px; color: rgb(199, 37, 78);">Accept-Language</span><span style="font-size: 15px; color: rgb(51, 51, 51);"> 头来决定本地化语言。</span>
+
+<span style="font-size: 28px; color: rgb(51, 51, 51);">错误处理</span>
+
+* * *
+
+<span style="font-size: 15px; color: rgb(51, 51, 51);">下表包含了所有在 </span>[<span style="font-size: 15px; color: rgb(0, 154, 97);">google.rpc.Code</span>](https://github.com/googleapis/googleapis/blob/master/google/rpc/code.proto)<span style="font-size: 15px; color: rgb(51, 51, 51);"> 中定义的 gRPC 错误代码和产生原因的简单描述。可以通过查看返回状态码的描述并修改对应的代码来处理错误。</span>
+
+| <span style="color: rgb(0, 0, 0);">HTTP</span> | <span style="color: rgb(0, 0, 0);">RPC</span> | <span style="color: rgb(0, 0, 0);">Description</span> |
+| --- | --- | --- |
+| <span style="color: rgb(0, 0, 0);">200</span> | <span style="color: rgb(0, 0, 0);">OK</span> | <span style="color: rgb(0, 0, 0);">没有错误</span> |
+| <span style="color: rgb(0, 0, 0);">400</span> | <span style="color: rgb(0, 0, 0);">INVALID_ARGUMENT</span> | <span style="color: rgb(0, 0, 0);">客户端使用了错误的参数，通过 error message 和 error details 查看更多信息</span> |
+| <span style="color: rgb(0, 0, 0);">400</span> | <span style="color: rgb(0, 0, 0);">FAILED_PRECONDITION</span> | <span style="color: rgb(0, 0, 0);">当前的系统状态不能执行请求，例如删除非空目录</span> |
+| <span style="color: rgb(0, 0, 0);">400</span> | <span style="color: rgb(0, 0, 0);">OUT_OF_RANGE</span> | <span style="color: rgb(0, 0, 0);">客户端指定无效范围</span> |
+| <span style="color: rgb(0, 0, 0);">401</span> | <span style="color: rgb(0, 0, 0);">UNAUTHENTICATED</span> | <span style="color: rgb(0, 0, 0);">由于缺少、无效或过期的 OAuth 令牌，请求未通过身份验证</span> |
+| <span style="color: rgb(0, 0, 0);">403</span> | <span style="color: rgb(0, 0, 0);">PERMISSION_DENIED</span> | <span style="color: rgb(0, 0, 0);">客户端没有足够的权限，这可能是因为 OAuth 令牌没有正确的范围，客户端没有权限或者 API 还没有开放</span> |
+| <span style="color: rgb(0, 0, 0);">404</span> | <span style="color: rgb(0, 0, 0);">NOT_FOUND</span> | <span style="color: rgb(0, 0, 0);">指定的资源不存在，或者由于未公开的原因（如白名单）请求被拒绝</span> |
+| <span style="color: rgb(0, 0, 0);">409</span> | <span style="color: rgb(0, 0, 0);">ABORTED</span> | <span style="color: rgb(0, 0, 0);">并发冲突，例如读写冲突</span> |
+| <span style="color: rgb(0, 0, 0);">409</span> | <span style="color: rgb(0, 0, 0);">ALREADY_EXISTS</span> | <span style="color: rgb(0, 0, 0);">客户端试图创建的资源已经存在</span> |
+| <span style="color: rgb(0, 0, 0);">429</span> | <span style="color: rgb(0, 0, 0);">RESOURCE_EXHAUSTED</span> | <span style="color: rgb(0, 0, 0);">超过资源限额或频率限制,客户端应该通过 google.rpc.QuotaFailure 查看更多信息</span> |
+| <span style="color: rgb(0, 0, 0);">499</span> | <span style="color: rgb(0, 0, 0);">CANCELLED</span> | <span style="color: rgb(0, 0, 0);">客户端取消请求</span> |
+| <span style="color: rgb(0, 0, 0);">500</span> | <span style="color: rgb(0, 0, 0);">DATA_LOSS</span> | <span style="color: rgb(0, 0, 0);">不可恢复的数据丢失或损坏，客户端应该将此错误报告给用户</span> |
+| <span style="color: rgb(0, 0, 0);">500</span> | <span style="color: rgb(0, 0, 0);">UNKNOWN</span> | <span style="color: rgb(0, 0, 0);">服务端未知错误，一般是 BUG</span> |
+| <span style="color: rgb(0, 0, 0);">500</span> | <span style="color: rgb(0, 0, 0);">INTERNAL</span> | <span style="color: rgb(0, 0, 0);">服务端内部错误，一般是 BUG</span> |
+| <span style="color: rgb(0, 0, 0);">501</span> | <span style="color: rgb(0, 0, 0);">NOT_IMPLEMENTED</span> | <span style="color: rgb(0, 0, 0);">服务端未实现此 API</span> |
+| <span style="color: rgb(0, 0, 0);">503</span> | <span style="color: rgb(0, 0, 0);">UNAVAILABLE</span> | <span style="color: rgb(0, 0, 0);">服务端不可用，一般是服务端挂了</span> |
+| <span style="color: rgb(0, 0, 0);">504</span> | <span style="color: rgb(0, 0, 0);">DEADLINE_EXCEEDED</span> | <span style="color: rgb(0, 0, 0);">请求超过最后期限，如果重复发生，请考虑减少请求的复杂性</span> |
+
+<span style="font-size: 24px; color: rgb(51, 51, 51);">错误重试</span>
+
+* * *
+
+<span style="font-size: 15px; color: rgb(51, 51, 51);">当发生 500，503 和 504 错误时客户端 </span><span style="font-size: 15px; color: rgb(51, 51, 51);">应该（should）</span><span style="font-size: 15px; color: rgb(51, 51, 51);"> 以指数级增长的间隔来重试请求。除非文档中进行了说明，最小的重试间隔应该是 1 秒。对于 429 错误，客户端应该以最小 30 秒的间隔重试。对于其他错误，重试操作可能并不可行，请先确保请求是幂等的并查看错误消息以获得指引。</span>
+
+<span style="font-size: 24px; color: rgb(51, 51, 51);">错误传播</span>
+
+* * *
+
+<span style="font-size: 15px; color: rgb(51, 51, 51);">如果 API 服务依赖于其他服务，则不应盲目地将这些服务中的错误传播给客户端。翻译错误时，有如下建议：</span>
+
+*   隐藏实现细节和机密信息
+*   调整负责该错误的一方。例如，应把从其他服务接收到 INVALID ARGUMENT 错误转换为 INTERNAL 返回给调用者。
+
+<span style="font-size: 28px; color: rgb(51, 51, 51);">生成错误</span>
+
+* * *
+
+<span style="font-size: 15px; color: rgb(51, 51, 51);">服务端产生的错误应该包含足够多的信息来帮助客户端开发者理解和解决问题。同时也要小心用户数据的安全和隐私，因为错误经常会被作为日志记录下来并被其他人查看，所以应避免在错误信息和错误详情中暴露敏感信息。例如，错误信息“Client IP address is not on whitelist 128.0.0.0/8”将用户不可访问的服务端策略暴露出去了。</span>
+
+<span style="font-size: 15px; color: rgb(51, 51, 51);">为了生成合适的错误，你首先应该熟悉 </span>[<span style="font-size: 13px; color: rgb(199, 37, 78);">google.rpc.Code</span>](https://github.com/googleapis/googleapis/blob/master/google/rpc/code.proto)<span style="font-size: 15px; color: rgb(51, 51, 51);"> 来为每种错误条件选择最合适的错误。服务端程序可以并行检查多个错误条件，然后返回第一个。</span>
+
+<span style="font-size: 15px; color: rgb(51, 51, 51);">下表列出了每一种错误码和对应的错误信息示例。</span>
+
+| <span style="color: rgb(0, 0, 0);">HTTP</span> | <span style="color: rgb(0, 0, 0);">RPC</span> | <span style="color: rgb(0, 0, 0);">错误信息示例</span> |
+| --- | --- | --- |
+| <span style="color: rgb(0, 0, 0);">400</span> | <span style="color: rgb(0, 0, 0);">INVALID_ARGUMENT</span> | <span style="color: rgb(0, 0, 0);">Request field x.y.z is xxx, expected one of [yyy, zzz].</span> |
+| <span style="color: rgb(0, 0, 0);">400</span> | <span style="color: rgb(0, 0, 0);">FAILED_PRECONDITION</span> | <span style="color: rgb(0, 0, 0);">Resource xxx is a non-empty directory, so it cannot be deleted.</span> |
+| <span style="color: rgb(0, 0, 0);">400</span> | <span style="color: rgb(0, 0, 0);">OUT_OF_RANGE</span> | <span style="color: rgb(0, 0, 0);">Parameter 'age' is out of range [0, 125].</span> |
+| <span style="color: rgb(0, 0, 0);">401</span> | <span style="color: rgb(0, 0, 0);">UNAUTHENTICATED</span> | <span style="color: rgb(0, 0, 0);">Invalid authentication credentials.</span> |
+| <span style="color: rgb(0, 0, 0);">403</span> | <span style="color: rgb(0, 0, 0);">PERMISSION_DENIED</span> | <span style="color: rgb(0, 0, 0);">Permission 'xxx' denied on file 'yyy'.</span> |
+| <span style="color: rgb(0, 0, 0);">404</span> | <span style="color: rgb(0, 0, 0);">NOT_FOUND</span> | <span style="color: rgb(0, 0, 0);">Resource 'xxx' not found.</span> |
+| <span style="color: rgb(0, 0, 0);">409</span> | <span style="color: rgb(0, 0, 0);">ABORTED</span> | <span style="color: rgb(0, 0, 0);">Couldn’t acquire lock on resource ‘xxx’.</span> |
+| <span style="color: rgb(0, 0, 0);">409</span> | <span style="color: rgb(0, 0, 0);">ALREADY_EXISTS</span> | <span style="color: rgb(0, 0, 0);">Resource 'xxx' already exists.</span> |
+| <span style="color: rgb(0, 0, 0);">429</span> | <span style="color: rgb(0, 0, 0);">RESOURCE_EXHAUSTED</span> | <span style="color: rgb(0, 0, 0);">Quota limit 'xxx' exceeded.</span> |
+| <span style="color: rgb(0, 0, 0);">499</span> | <span style="color: rgb(0, 0, 0);">CANCELLED</span> | <span style="color: rgb(0, 0, 0);">Request cancelled by the client.</span> |
+| <span style="color: rgb(0, 0, 0);">500</span> | <span style="color: rgb(0, 0, 0);">DATA_LOSS</span> | <span style="color: rgb(0, 0, 0);">请看提示</span> |
+| <span style="color: rgb(0, 0, 0);">500</span> | <span style="color: rgb(0, 0, 0);">UNKNOWN</span> | <span style="color: rgb(0, 0, 0);">请看提示</span> |
+| <span style="color: rgb(0, 0, 0);">500</span> | <span style="color: rgb(0, 0, 0);">INTERNAL</span> | <span style="color: rgb(0, 0, 0);">请看提示</span> |
+| <span style="color: rgb(0, 0, 0);">501</span> | <span style="color: rgb(0, 0, 0);">NOT_IMPLEMENTED</span> | <span style="color: rgb(0, 0, 0);">Method 'xxx' not implemented.</span> |
+| <span style="color: rgb(0, 0, 0);">503</span> | <span style="color: rgb(0, 0, 0);">UNAVAILABLE</span> | <span style="color: rgb(0, 0, 0);">请看提示</span> |
+| <span style="color: rgb(0, 0, 0);">504</span> | <span style="color: rgb(0, 0, 0);">DEADLINE_EXCEEDED</span> | <span style="color: rgb(0, 0, 0);">请看提示</span> |
+
+<span style="font-size: 15px; color: rgb(51, 51, 51);">提示</span><span style="font-size: 15px; color: rgb(51, 51, 51);">：因为客户端不能修复服务端的错误，生成额外的错误详情并没有用处。为了避免通过 error condition 泄露敏感信息，推荐不要生成任何 error message 并且只生成 </span><span style="font-size: 13px; color: rgb(199, 37, 78);">google.rpc.DebugInfo</span><span style="font-size: 15px; color: rgb(51, 51, 51);"> 错误详情。</span><span style="font-size: 13px; color: rgb(199, 37, 78);">DebugInfo</span><span style="font-size: 15px; color: rgb(51, 51, 51);"> 只能用于服务端日志，不要发送给客户端。</span>
+
+<span style="font-size: 13px; color: rgb(199, 37, 78);">google.rpc</span><span style="font-size: 15px; color: rgb(51, 51, 51);"> 定义了一组标准错误负载，它们优先于自定义的错误负载。下表列出了每个错误代码及其匹配的标准错误负载。</span>
+
+| <span style="color: rgb(0, 0, 0);">HTTP</span> | <span style="color: rgb(0, 0, 0);">RPC</span> | <span style="color: rgb(0, 0, 0);">推荐的错误详情</span> |
+| --- | --- | --- |
+| <span style="color: rgb(0, 0, 0);">400</span> | <span style="color: rgb(0, 0, 0);">INVALID_ARGUMENT</span> | <span style="color: rgb(0, 0, 0);">google.rpc.BadRequest</span> |
+| <span style="color: rgb(0, 0, 0);">400</span> | <span style="color: rgb(0, 0, 0);">FAILED_PRECONDITION</span> | <span style="color: rgb(0, 0, 0);">google.rpc.PreconditionFailure</span> |
+| <span style="color: rgb(0, 0, 0);">400</span> | <span style="color: rgb(0, 0, 0);">OUT_OF_RANGE</span> | <span style="color: rgb(0, 0, 0);">google.rpc.BadRequest</span> |
+| <span style="color: rgb(0, 0, 0);">401</span> | <span style="color: rgb(0, 0, 0);">UNAUTHENTICATED</span> |  |
+| <span style="color: rgb(0, 0, 0);">403</span> | <span style="color: rgb(0, 0, 0);">PERMISSION_DENIED</span> |  |
+| <span style="color: rgb(0, 0, 0);">404</span> | <span style="color: rgb(0, 0, 0);">NOT_FOUND</span> |  |
+| <span style="color: rgb(0, 0, 0);">409</span> | <span style="color: rgb(0, 0, 0);">ABORTED</span> |  |
+| <span style="color: rgb(0, 0, 0);">409</span> | <span style="color: rgb(0, 0, 0);">ALREADY_EXISTS</span> |  |
+| <span style="color: rgb(0, 0, 0);">429</span> | <span style="color: rgb(0, 0, 0);">RESOURCE_EXHAUSTED</span> | <span style="color: rgb(0, 0, 0);">google.rpc.QuotaFailure</span> |
+| <span style="color: rgb(0, 0, 0);">499</span> | <span style="color: rgb(0, 0, 0);">CANCELLED</span> |  |
+| <span style="color: rgb(0, 0, 0);">500</span> | <span style="color: rgb(0, 0, 0);">DATA_LOSS</span> |  |
+| <span style="color: rgb(0, 0, 0);">500</span> | <span style="color: rgb(0, 0, 0);">UNKNOWN</span> |  |
+| <span style="color: rgb(0, 0, 0);">500</span> | <span style="color: rgb(0, 0, 0);">INTERNAL</span> |  |
+| <span style="color: rgb(0, 0, 0);">501</span> | <span style="color: rgb(0, 0, 0);">NOT_IMPLEMENTED</span> |  |
+| <span style="color: rgb(0, 0, 0);">503</span> | <span style="color: rgb(0, 0, 0);">UNAVAILABLE</span> |  |
+| <span style="color: rgb(0, 0, 0);">504</span> | <span style="color: rgb(0, 0, 0);">DEADLINE_EXCEEDED</span> |  |
+
 <h1 id="7-Naming-Conventions"><code>命名规范</code></h1>
+
+<span style="font-size: 15px; color: rgb(51, 51, 51);">为了在长期和大量使用的 API 中提供统一的开发体验，API 中的所有名字 </span><span style="font-size: 15px; color: rgb(51, 51, 51);">应该（should）</span><span style="font-size: 15px; color: rgb(51, 51, 51);"> :</span>
+
+*   简单
+*   直观
+*   一致
+
+<span style="font-size: 15px; color: rgb(51, 51, 51);">此文章讨论了接口、资源、集合、方法和消息的名字。</span>
+
+<span style="font-size: 15px; color: rgb(51, 51, 51);">因为很多开发者的母语并不是英语，这些命名约定通过鼓励使用简单、统一的短词汇来命名方法和资源来保证大部分开发者能够容易理解 API。</span>
+
+*   API 中的名字 应该（should） 使用美式英语，例如：license（不是 licence），color（不是 colour）。
+*   使用常用的简短形式或缩写，例如： API 比 Application Programming Interface 更好。
+*   尽量使用直接、熟悉的术语，例如：描述对资源的删除（销毁）时，delete 比 erase 更好。
+*   对相同的概念使用相同的名字或术语，包括在 API 中共享的概念。
+*   避免名字重用，对不同的概念要使用不同名字。
+*   避免使用在 API 上下文中会造成混乱的过于通用的名字，它们会导致对 API 概念的误解。应该选择能够精确描述概念的名字。这对于定义一阶 API 元素的名称尤其重要。因为名字与上下文相关，所以并没有明确的名字黑名单。Instance, info 和 service 是会产生问题的名字。应该选择能够明确表达出 API 概念（例：instance 表示什么的实例？）并且容易与其他相关概念有区分（例：alert 的意思是规则，信号还是通知？）的名字。
+*   谨慎使用会与常用编程语言中的关键字有冲突的名字。
+
+<span style="font-size: 28px; color: rgb(51, 51, 51);">产品名</span>
+
+* * *
+
+<span style="font-size: 15px; color: rgb(51, 51, 51);">产品名是指 API 的产品营销名称，例如 </span><span style="font-size: 15px; color: rgb(51, 51, 51);">Google Calendar API</span><span style="font-size: 15px; color: rgb(51, 51, 51);">。在 API、UI、文档、服务条款、结账单和商业合同中使用的产品名称 </span><span style="font-size: 15px; color: rgb(51, 51, 51);">应该（should）</span><span style="font-size: 15px; color: rgb(51, 51, 51);"> 一致。</span>
+
+<span style="font-size: 15px; color: rgb(51, 51, 51);">Google API </span><span style="font-size: 15px; color: rgb(51, 51, 51);">必须（must）</span><span style="font-size: 15px; color: rgb(51, 51, 51);"> 使用 </span><span style="font-size: 15px; color: rgb(51, 51, 51);">Google</span><span style="font-size: 15px; color: rgb(51, 51, 51);"> 作为产品名的前缀，除非它们像 </span><span style="font-size: 15px; color: rgb(51, 51, 51);">Gmail</span><span style="font-size: 15px; color: rgb(51, 51, 51);">, </span><span style="font-size: 15px; color: rgb(51, 51, 51);">Nest</span><span style="font-size: 15px; color: rgb(51, 51, 51);">, </span><span style="font-size: 15px; color: rgb(51, 51, 51);">Youtube</span><span style="font-size: 15px; color: rgb(51, 51, 51);"> 这种有不同的品牌。一般来说产品名 </span><span style="font-size: 15px; color: rgb(51, 51, 51);">应该（should）</span><span style="font-size: 15px; color: rgb(51, 51, 51);"> 由产品和市场部门决定。</span>
+
+<span style="font-size: 15px; color: rgb(51, 51, 51);">下表列出了所有相关 API 名称及其一致性的示例，有关各自名称及其约定的更多详细信息，请继续往下看。</span>
+
+| <span style="color: rgb(0, 0, 0);">API 名</span> | <span style="color: rgb(0, 0, 0);">示例</span> |
+| --- | --- |
+| <span style="color: rgb(0, 0, 0);">产品名</span> | <span style="color: rgb(0, 0, 0);">Google Calendar API</span> |
+| <span style="color: rgb(0, 0, 0);">服务名</span> | <span style="color: rgb(0, 0, 0);">calendar.googleapis.com</span> |
+| <span style="color: rgb(0, 0, 0);">包名</span> | <span style="color: rgb(0, 0, 0);">google.calendar.v3</span> |
+| <span style="color: rgb(0, 0, 0);">接口名</span> | <span style="color: rgb(0, 0, 0);">google.calendar.v3.CalendarService</span> |
+| <span style="color: rgb(0, 0, 0);">资源目录</span> | <span style="color: rgb(0, 0, 0);">//google/calendar/v3</span> |
+| <span style="color: rgb(0, 0, 0);">API 名</span> | <span style="color: rgb(0, 0, 0);">calendar</span> |
+
+<span style="font-size: 28px; color: rgb(51, 51, 51);">服务名</span>
+
+* * *
+
+<span style="font-size: 15px; color: rgb(51, 51, 51);">服务名 </span><span style="font-size: 15px; color: rgb(51, 51, 51);">应该（should）</span><span style="font-size: 15px; color: rgb(51, 51, 51);"> 是一个能够被解析为一个或多个网络地址的合法 </span>[<span style="font-size: 15px; color: rgb(0, 154, 97);">DNS 名字</span>](http://www.ietf.org/rfc/rfc1035.txt)<span style="font-size: 15px; color: rgb(51, 51, 51);">。公有 Google API 的服务名遵循如下模式：</span><span style="font-size: 13px; color: rgb(199, 37, 78);">xxx.googleapis.com</span><span style="font-size: 15px; color: rgb(51, 51, 51);">。例如：谷歌日历的服务名是 </span><span style="font-size: 13px; color: rgb(199, 37, 78);">calendar.googleapis.com</span><span style="font-size: 15px; color: rgb(51, 51, 51);">。</span>
+
+<span style="font-size: 15px; color: rgb(51, 51, 51);">如果一个 API 由多个服务组成，它们 </span><span style="font-size: 15px; color: rgb(51, 51, 51);">应该（should）</span><span style="font-size: 15px; color: rgb(51, 51, 51);"> 以能够提高可发现性的方法命名。一种方法是为这些服务名使用相同的前缀。例如服务 </span><span style="font-size: 13px; color: rgb(199, 37, 78);">build.googleapis.com</span><span style="font-size: 15px; color: rgb(51, 51, 51);"> 和 </span><span style="font-size: 13px; color: rgb(199, 37, 78);">buildresults.googleapis.com</span><span style="font-size: 15px; color: rgb(51, 51, 51);"> 都是 Google Build API 的一部分。</span>
+
+<span style="font-size: 28px; color: rgb(51, 51, 51);">包名</span>
+
+* * *
+
+<span style="font-size: 15px; color: rgb(51, 51, 51);">在 .proto 文件中定义的包名 </span><span style="font-size: 15px; color: rgb(51, 51, 51);">应该（should）</span><span style="font-size: 15px; color: rgb(51, 51, 51);"> 与产品名和服务名相同。有版本号的包名 </span><span style="font-size: 15px; color: rgb(51, 51, 51);">必须（must）</span><span style="font-size: 15px; color: rgb(51, 51, 51);"> 以版本号结尾。例如：</span>
+
+<span style="font-size: 13px; color: rgb(153, 153, 136);">// Google Calendar API</span><span style="font-size: 13px; color: rgb(51, 51, 51);">package</span> <span style="font-size: 13px; color: rgb(51, 51, 51);"></span> <span style="font-size: 13px; color: rgb(68, 85, 136);">google</span><span style="font-size: 13px; color: rgb(51, 51, 51);">.</span><span style="font-size: 13px; color: rgb(68, 85, 136);">calendar</span><span style="font-size: 13px; color: rgb(51, 51, 51);">.</span><span style="font-size: 13px; color: rgb(68, 85, 136);">v3</span><span style="font-size: 13px; color: rgb(51, 51, 51);">;</span>
+
+<span style="font-size: 15px; color: rgb(51, 51, 51);">不与服务直接关联的抽象 API，例如 Google Watcher API </span><span style="font-size: 15px; color: rgb(51, 51, 51);">应该（should）</span><span style="font-size: 15px; color: rgb(51, 51, 51);"> 使用与产品名相同的 proto 包名：</span>
+
+<span style="font-size: 13px; color: rgb(153, 153, 136);">// Google Watcher API</span><span style="font-size: 13px; color: rgb(51, 51, 51);">package</span> <span style="font-size: 13px; color: rgb(51, 51, 51);"></span> <span style="font-size: 13px; color: rgb(68, 85, 136);">google</span><span style="font-size: 13px; color: rgb(51, 51, 51);">.</span><span style="font-size: 13px; color: rgb(68, 85, 136);">watcher</span><span style="font-size: 13px; color: rgb(51, 51, 51);">.</span><span style="font-size: 13px; color: rgb(68, 85, 136);">v1</span><span style="font-size: 13px; color: rgb(51, 51, 51);">;</span>
+
+<span style="font-size: 15px; color: rgb(51, 51, 51);">在 .proto 文件中指定的 Java 包名 </span><span style="font-size: 15px; color: rgb(51, 51, 51);">必须（must）</span><span style="font-size: 15px; color: rgb(51, 51, 51);"> 符合标准 Java 包名的前缀（</span><span style="font-size: 13px; color: rgb(199, 37, 78);">com.</span><span style="font-size: 15px; color: rgb(51, 51, 51);">, </span><span style="font-size: 13px; color: rgb(199, 37, 78);">edu.</span><span style="font-size: 15px; color: rgb(51, 51, 51);">, </span><span style="font-size: 13px; color: rgb(199, 37, 78);">net.</span><span style="font-size: 15px; color: rgb(51, 51, 51);"> 等）。例如：</span>
+
+<span style="font-size: 13px; color: rgb(51, 51, 51);">package google.calendar.v3</span><span style="font-size: 13px; color: rgb(153, 153, 136);">;</span><span style="font-size: 13px; color: rgb(51, 51, 51);">// 指定 Java 包的名字，使用标准前缀</span> <span style="font-size: 13px; color: rgb(221, 17, 68);">"com."</span><span style="font-size: 13px; color: rgb(51, 51, 51);">option java_package =</span> <span style="font-size: 13px; color: rgb(221, 17, 68);">"com.google.calendar.v3"</span><span style="font-size: 13px; color: rgb(153, 153, 136);">;</span>
+
+<span style="font-size: 28px; color: rgb(51, 51, 51);">集合 ID</span>
+
+* * *
+
+[<span style="font-size: 15px; color: rgb(0, 154, 97);">集合 ID</span>](http://tailnode.tk/2017/03/google-api-design-guide/resource-names/#collectionid)<span style="font-size: 15px; color: rgb(51, 51, 51);"> </span><span style="font-size: 15px; color: rgb(51, 51, 51);">应该（should）</span><span style="font-size: 15px; color: rgb(51, 51, 51);"> 使用美式英语的、复数形式的、首字母小写的驼峰命名法，例如：</span><span style="font-size: 13px; color: rgb(199, 37, 78);">events</span><span style="font-size: 15px; color: rgb(51, 51, 51);">, </span><span style="font-size: 13px; color: rgb(199, 37, 78);">children</span><span style="font-size: 15px; color: rgb(51, 51, 51);"> 或 </span><span style="font-size: 13px; color: rgb(199, 37, 78);">deletedEvents</span><span style="font-size: 15px; color: rgb(51, 51, 51);">。</span>
+
+<span style="font-size: 28px; color: rgb(51, 51, 51);">接口名</span>
+
+* * *
+
+<span style="font-size: 15px; color: rgb(51, 51, 51);">为了避免和形如 </span><span style="font-size: 13px; color: rgb(199, 37, 78);">pubsub.googleapis.com</span><span style="font-size: 15px; color: rgb(51, 51, 51);"> 的</span>[<span style="font-size: 15px; color: rgb(0, 154, 97);">资源名</span>](http://tailnode.tk/2017/04/google-api-design-guide/naming-conventions/#service_name)<span style="font-size: 15px; color: rgb(51, 51, 51);">混淆，术语 </span><span style="font-size: 15px; color: rgb(51, 51, 51);">接口名</span><span style="font-size: 15px; color: rgb(51, 51, 51);"> 指的是在 .proto 文件中定义 </span><span style="font-size: 13px; color: rgb(199, 37, 78);">service</span><span style="font-size: 15px; color: rgb(51, 51, 51);"> 时使用的名字：</span>
+
+<span style="font-size: 13px; color: rgb(153, 153, 136);">// Library is the interface name.</span><span style="font-size: 13px; color: rgb(51, 51, 51);">service</span> <span style="font-size: 13px; color: rgb(51, 51, 51);"></span> <span style="font-size: 13px; color: rgb(68, 85, 136);">Library</span> <span style="font-size: 13px; color: rgb(51, 51, 51);">{</span> <span style="font-size: 13px; color: rgb(51, 51, 51);">rpc</span> <span style="font-size: 13px; color: rgb(51, 51, 51);">ListBooks(...)</span> <span style="font-size: 13px; color: rgb(51, 51, 51);">returns</span> <span style="font-size: 13px; color: rgb(51, 51, 51);">(...);</span> <span style="font-size: 13px; color: rgb(51, 51, 51);">rpc</span> <span style="font-size: 13px; color: rgb(51, 51, 51);">...}</span>
+
+<span style="font-size: 15px; color: rgb(51, 51, 51);">你可以认为 </span><span style="font-size: 15px; color: rgb(51, 51, 51);">服务名</span><span style="font-size: 15px; color: rgb(51, 51, 51);"> 是指一组 API 的具体实现，</span><span style="font-size: 15px; color: rgb(51, 51, 51);">接口名</span><span style="font-size: 15px; color: rgb(51, 51, 51);"> 是指一个 API 的抽象定义。</span>
+
+<span style="font-size: 15px; color: rgb(51, 51, 51);">接口名称 </span><span style="font-size: 15px; color: rgb(51, 51, 51);">应该（should）</span><span style="font-size: 15px; color: rgb(51, 51, 51);"> 使用直观的名词，如 Calendar 或 Blob。</span><span style="font-size: 15px; color: rgb(51, 51, 51);">不应该（should not）</span><span style="font-size: 15px; color: rgb(51, 51, 51);"> 与编程语言中已有的任何概念或运行时库冲突（如：File）。</span>
+
+<span style="font-size: 15px; color: rgb(51, 51, 51);">当 </span><span style="font-size: 15px; color: rgb(51, 51, 51);">接口名</span><span style="font-size: 15px; color: rgb(51, 51, 51);"> 与 API 中其他名字冲突时，应该为其加上前缀（如 </span><span style="font-size: 13px; color: rgb(199, 37, 78);">Api</span><span style="font-size: 15px; color: rgb(51, 51, 51);"> 或 </span><span style="font-size: 13px; color: rgb(199, 37, 78);">Service</span><span style="font-size: 15px; color: rgb(51, 51, 51);">）来进行区分。</span>
+
+<span style="font-size: 28px; color: rgb(51, 51, 51);">方法名</span>
+
+* * *
+
+<span style="font-size: 15px; color: rgb(51, 51, 51);">在其 IDL 规范中，服务 </span><span style="font-size: 15px; color: rgb(51, 51, 51);">可以（may）</span><span style="font-size: 15px; color: rgb(51, 51, 51);"> 定义与集合和资源上的方法相对应的一个或多个RPC方法。方法名 </span><span style="font-size: 15px; color: rgb(51, 51, 51);">应该（should）</span><span style="font-size: 15px; color: rgb(51, 51, 51);"> 遵循像 </span><span style="font-size: 13px; color: rgb(199, 37, 78);">VerbNoun</span><span style="font-size: 15px; color: rgb(51, 51, 51);"> 这样首字母大写的驼峰命名法的命名约定，其中名词（Noun）通常是资源类型。</span>
+
+| <span style="color: rgb(0, 0, 0);">动词（Verb）</span> | <span style="color: rgb(0, 0, 0);">名词（Noun）</span> | <span style="color: rgb(0, 0, 0);">方法名</span> | <span style="color: rgb(0, 0, 0);">请求信息</span> | <span style="color: rgb(0, 0, 0);">响应信息</span> |
+| --- | --- | --- | --- | --- |
+| <span style="color: rgb(0, 0, 0);">List</span> | <span style="color: rgb(0, 0, 0);">Book</span> | <span style="color: rgb(0, 0, 0);">ListBooks</span> | <span style="color: rgb(0, 0, 0);">ListBooksRequest</span> | <span style="color: rgb(0, 0, 0);">ListBooksResponse</span> |
+| <span style="color: rgb(0, 0, 0);">Get</span> | <span style="color: rgb(0, 0, 0);">Book</span> | <span style="color: rgb(0, 0, 0);">GetBook</span> | <span style="color: rgb(0, 0, 0);">GetBookRequest</span> | <span style="color: rgb(0, 0, 0);">Book</span> |
+| <span style="color: rgb(0, 0, 0);">Create</span> | <span style="color: rgb(0, 0, 0);">Book</span> | <span style="color: rgb(0, 0, 0);">CreateBook</span> | <span style="color: rgb(0, 0, 0);">CreateBookRequest</span> | <span style="color: rgb(0, 0, 0);">Book</span> |
+| <span style="color: rgb(0, 0, 0);">Update</span> | <span style="color: rgb(0, 0, 0);">Book</span> | <span style="color: rgb(0, 0, 0);">UpdateBook</span> | <span style="color: rgb(0, 0, 0);">UpdateBookRequest</span> | <span style="color: rgb(0, 0, 0);">Book</span> |
+| <span style="color: rgb(0, 0, 0);">Rename</span> | <span style="color: rgb(0, 0, 0);">Book</span> | <span style="color: rgb(0, 0, 0);">RenameBook</span> | <span style="color: rgb(0, 0, 0);">RenameBookRequest</span> | <span style="color: rgb(0, 0, 0);">RenameBookResponse</span> |
+| <span style="color: rgb(0, 0, 0);">Delete</span> | <span style="color: rgb(0, 0, 0);">Book</span> | <span style="color: rgb(0, 0, 0);">DeleteBook</span> | <span style="color: rgb(0, 0, 0);">DeleteBookRequest</span> | <span style="color: rgb(0, 0, 0);">google.protobuf.Empty</span> |
+
+<span style="font-size: 28px; color: rgb(51, 51, 51);">消息名</span>
+
+* * *
+
+<span style="font-size: 15px; color: rgb(51, 51, 51);">RPC 方法的请求与响应消息 </span><span style="font-size: 15px; color: rgb(51, 51, 51);">应该（should）</span><span style="font-size: 15px; color: rgb(51, 51, 51);"> 以方法名分别加上 </span><span style="font-size: 13px; color: rgb(199, 37, 78);">Request</span><span style="font-size: 15px; color: rgb(51, 51, 51);"> 和 </span><span style="font-size: 13px; color: rgb(199, 37, 78);">Response</span><span style="font-size: 15px; color: rgb(51, 51, 51);"> 的方式命名。除非方法的请求或响应类型如下：</span>
+
+*   空消息（使用 <span style="font-size: 13px; color: rgb(199, 37, 78);">google.protobuf.Empty</span>）
+*   资源类型
+*   代表一种操作的资源
+
+<span style="font-size: 28px; color: rgb(51, 51, 51);">枚举名</span>
+
+* * *
+
+<span style="font-size: 15px; color: rgb(51, 51, 51);">枚举类型的名字 </span><span style="font-size: 15px; color: rgb(51, 51, 51);">必须（must）</span><span style="font-size: 15px; color: rgb(51, 51, 51);"> 使用首字母大写的驼峰命名法。</span>
+
+<span style="font-size: 15px; color: rgb(51, 51, 51);">枚举值 </span><span style="font-size: 15px; color: rgb(51, 51, 51);">必须（must）</span><span style="font-size: 15px; color: rgb(51, 51, 51);"> 以下划线分隔且字母全部大写的方式来命名（例如：CAPITALIZED_NAMES_WITH_UNDERSCORES）。每个枚举值 </span><span style="font-size: 15px; color: rgb(51, 51, 51);">必须（must）</span><span style="font-size: 15px; color: rgb(51, 51, 51);"> 以分号而不是逗号结尾。第一个值 </span><span style="font-size: 15px; color: rgb(51, 51, 51);">应该（should）</span><span style="font-size: 15px; color: rgb(51, 51, 51);"> 命名为 ENUM_TYPE_UNSPECIFIED，用于当没有明确指定枚举值时返回。</span>
+
+<span style="font-size: 13px; color: rgb(51, 51, 51);">enum</span> <span style="font-size: 13px; color: rgb(51, 51, 51);"></span> <span style="font-size: 13px; color: rgb(68, 85, 136);">FooBar</span> <span style="font-size: 13px; color: rgb(51, 51, 51);">{ /</span><span style="font-size: 13px; color: rgb(0, 153, 38);">/ 第一个表示默认值，并且一定等于 0 FOO_BAR_UNSPECIFIED = 0; FIRST_VALUE = 1; SECOND_VALUE = 2;}</span>
+
+<span style="font-size: 28px; color: rgb(51, 51, 51);">字段名</span>
+
+* * *
+
+<span style="font-size: 15px; color: rgb(51, 51, 51);">在 .proto 文件中定义的字段名 </span><span style="font-size: 15px; color: rgb(51, 51, 51);">必须（must）</span><span style="font-size: 15px; color: rgb(51, 51, 51);"> 以下划线分隔且字母全部小写的方式来命名（例如：lower_case_underscore_separated_names）。这些名字会遵守各编程语言的命名约定来映射到生成的代码中。</span>
+
+<span style="font-size: 24px; color: rgb(51, 51, 51);">重复字段名（Repeated field）</span>
+
+* * *
+
+<span style="font-size: 15px; color: rgb(51, 51, 51);">API 中的重复字段 </span><span style="font-size: 15px; color: rgb(51, 51, 51);">必须（must）</span><span style="font-size: 15px; color: rgb(51, 51, 51);"> 使用合适的复数形式。这符合现有 Google API 的惯例以及外部开发人员的通常期望。</span>
+
+<span style="font-size: 24px; color: rgb(51, 51, 51);">时间和间隔</span>
+
+* * *
+
+<span style="font-size: 15px; color: rgb(51, 51, 51);">应该（should）</span><span style="font-size: 15px; color: rgb(51, 51, 51);">使用</span> <span style="font-size: 13px; color: rgb(199, 37, 78);">google.protobuf.Timestamp</span> <span style="font-size: 15px; color: rgb(51, 51, 51);">并且字段名 </span><span style="font-size: 15px; color: rgb(51, 51, 51);">应该（should）</span><span style="font-size: 15px; color: rgb(51, 51, 51);"> 以 </span><span style="font-size: 13px; color: rgb(199, 37, 78);">time</span><span style="font-size: 15px; color: rgb(51, 51, 51);"> 结尾来表示独立于任一时区的时间点。例如 </span><span style="font-size: 13px; color: rgb(199, 37, 78);">start_time</span><span style="font-size: 15px; color: rgb(51, 51, 51);">, </span><span style="font-size: 13px; color: rgb(199, 37, 78);">end_time</span><span style="font-size: 15px; color: rgb(51, 51, 51);">。</span>
+
+<span style="font-size: 15px; color: rgb(51, 51, 51);">如果表示一个活动的时间，字段名 </span><span style="font-size: 15px; color: rgb(51, 51, 51);">应该（should）</span><span style="font-size: 15px; color: rgb(51, 51, 51);">使用</span> <span style="font-size: 13px; color: rgb(199, 37, 78);">verb_time</span><span style="font-size: 15px; color: rgb(51, 51, 51);">  格式，如  </span><span style="font-size: 13px; color: rgb(199, 37, 78);">create_time</span><span style="font-size: 15px; color: rgb(51, 51, 51);">, </span><span style="font-size: 13px; color: rgb(199, 37, 78);">update_time</span> <span style="font-size: 15px; color: rgb(51, 51, 51);">。避免使用动词的过去时形式，如</span> <span style="font-size: 13px; color: rgb(199, 37, 78);">created_time</span> <span style="font-size: 15px; color: rgb(51, 51, 51);">或</span> <span style="font-size: 13px; color: rgb(199, 37, 78);">last_updated_time</span><span style="font-size: 15px; color: rgb(51, 51, 51);">。</span>
+
+<span style="font-size: 15px; color: rgb(51, 51, 51);">应该（should）</span><span style="font-size: 15px; color: rgb(51, 51, 51);">使用</span> <span style="font-size: 13px; color: rgb(199, 37, 78);">google.protobuf.Duration</span><span style="font-size: 15px; color: rgb(51, 51, 51);">  来表示一个时间段。</span>
+
+<span style="font-size: 13px; color: rgb(51, 51, 51);">message</span> <span style="font-size: 13px; color: rgb(51, 51, 51);"></span> <span style="font-size: 13px; color: rgb(68, 85, 136);">FlightRecord</span> <span style="font-size: 13px; color: rgb(51, 51, 51);">{ google.protobuf.Timestamp takeoff_time =</span> <span style="font-size: 13px; color: rgb(0, 128, 128);">1</span><span style="font-size: 13px; color: rgb(51, 51, 51);">; google.protobuf.Duration flight_duration =</span> <span style="font-size: 13px; color: rgb(0, 128, 128);">2</span><span style="font-size: 13px; color: rgb(51, 51, 51);">;}</span>
+
+<span style="font-size: 15px; color: rgb(51, 51, 51);">如果因为遗留系统或兼容原因要使用整形来表示时间相关的字段（包含墙上时间、时间段、延迟），字段名 </span><span style="font-size: 15px; color: rgb(51, 51, 51);">必须（must）</span><span style="font-size: 15px; color: rgb(51, 51, 51);">有如下形式：</span>
+
+<span style="font-size: 13px; color: rgb(51, 51, 51);">xxx_{</span><span style="font-size: 13px; color: rgb(0, 134, 179);">time</span><span style="font-size: 13px; color: rgb(51, 51, 51);">|</span><span style="font-size: 13px; color: rgb(68, 85, 136);">duration</span><span style="font-size: 13px; color: rgb(51, 51, 51);">|</span><span style="font-size: 13px; color: rgb(68, 85, 136);">delay</span><span style="font-size: 13px; color: rgb(51, 51, 51);">|</span><span style="font-size: 13px; color: rgb(68, 85, 136);">latency</span><span style="font-size: 13px; color: rgb(51, 51, 51);">}</span><span style="font-size: 13px; color: rgb(51, 51, 51);">_</span><span style="font-size: 13px; color: rgb(51, 51, 51);">{seconds|</span><span style="font-size: 13px; color: rgb(68, 85, 136);">millis</span><span style="font-size: 13px; color: rgb(51, 51, 51);">|</span><span style="font-size: 13px; color: rgb(68, 85, 136);">micros</span><span style="font-size: 13px; color: rgb(51, 51, 51);">|</span><span style="font-size: 13px; color: rgb(68, 85, 136);">nanos</span><span style="font-size: 13px; color: rgb(51, 51, 51);">}</span>
+
+<span style="font-size: 13px; color: rgb(51, 51, 51);">message</span> <span style="font-size: 13px; color: rgb(51, 51, 51);"></span> <span style="font-size: 13px; color: rgb(68, 85, 136);">Email</span> <span style="font-size: 13px; color: rgb(51, 51, 51);">{</span> <span style="font-size: 13px; color: rgb(0, 134, 179);">int64</span> <span style="font-size: 13px; color: rgb(51, 51, 51);">send_time_millis =</span> <span style="font-size: 13px; color: rgb(0, 128, 128);">1</span><span style="font-size: 13px; color: rgb(51, 51, 51);">;</span> <span style="font-size: 13px; color: rgb(0, 134, 179);">int64</span> <span style="font-size: 13px; color: rgb(51, 51, 51);">receive_time_millis =</span> <span style="font-size: 13px; color: rgb(0, 128, 128);">2</span><span style="font-size: 13px; color: rgb(51, 51, 51);">;}</span>
+
+<span style="font-size: 15px; color: rgb(51, 51, 51);">如果因为遗留系统或兼容原因要使用字符串来表示时间戳，字段名 </span><span style="font-size: 15px; color: rgb(51, 51, 51);">不应该（should not）</span><span style="font-size: 15px; color: rgb(51, 51, 51);"> 包含任何单位后缀。</span><span style="font-size: 15px; color: rgb(51, 51, 51);">应该（should）</span><span style="font-size: 15px; color: rgb(51, 51, 51);"> 使用形如  </span><span style="font-size: 13px; color: rgb(199, 37, 78);">2014-07-30T10:43:17Z</span><span style="font-size: 15px; color: rgb(51, 51, 51);">  的 RFC 3339 格式。</span>
+
+<span style="font-size: 24px; color: rgb(51, 51, 51);">日期与时间</span>
+
+* * *
+
+<span style="font-size: 15px; color: rgb(51, 51, 51);">应该（should）</span><span style="font-size: 15px; color: rgb(51, 51, 51);"> 使用  </span><span style="font-size: 13px; color: rgb(199, 37, 78);">google.type.Date</span><span style="font-size: 15px; color: rgb(51, 51, 51);">  并且字段名以  </span><span style="font-size: 13px; color: rgb(199, 37, 78);">_date</span><span style="font-size: 15px; color: rgb(51, 51, 51);">  结尾来表示独立于时区与时间的日期。如果必须以字符串表示，应该使用形如 YYYY-MM-DD 的 ISO 8601 日期格式（例如 2014-07-30）。</span>
+
+<span style="font-size: 15px; color: rgb(51, 51, 51);">应该（should）</span><span style="font-size: 15px; color: rgb(51, 51, 51);"> 使用 </span><span style="font-size: 13px; color: rgb(199, 37, 78);">google.type.TimeOfDay</span><span style="font-size: 15px; color: rgb(51, 51, 51);">  并且字段名以 </span><span style="font-size: 13px; color: rgb(199, 37, 78);">_time</span><span style="font-size: 15px; color: rgb(51, 51, 51);"> 结尾来表示独立于时区与日期的时间。如果必须以字符串表示，应该使用形如 HH:MM:SS[.FFF] 的 ISO 8601 的 24 小时时间格式（例如 14:55:01.672）。</span>
+
+<span style="font-size: 13px; color: rgb(153, 0, 0);">message</span> <span style="font-size: 13px; color: rgb(51, 51, 51);"></span> <span style="font-size: 13px; color: rgb(68, 85, 136);">StoreOpening</span> <span style="font-size: 13px; color: rgb(51, 51, 51);">{ google.</span><span style="font-size: 13px; color: rgb(51, 51, 51);">type</span><span style="font-size: 13px; color: rgb(51, 51, 51);">.</span><span style="font-size: 13px; color: rgb(68, 85, 136);">Date</span> <span style="font-size: 13px; color: rgb(51, 51, 51);">opening_date = 1; google.</span><span style="font-size: 13px; color: rgb(51, 51, 51);">type</span><span style="font-size: 13px; color: rgb(51, 51, 51);">.</span><span style="font-size: 13px; color: rgb(68, 85, 136);">TimeOfDay</span> <span style="font-size: 13px; color: rgb(51, 51, 51);">opening_time = 2;}</span>
+
+<span style="font-size: 24px; color: rgb(51, 51, 51);">数量</span>
+
+* * *
+
+<span style="font-size: 15px; color: rgb(51, 51, 51);">以整形表示的数量 </span><span style="font-size: 15px; color: rgb(51, 51, 51);">必须（must）</span><span style="font-size: 15px; color: rgb(51, 51, 51);"> 包含单位。</span>
+
+<span style="font-size: 13px; color: rgb(51, 51, 51);">xxx_{bytes|</span><span style="font-size: 13px; color: rgb(68, 85, 136);">width_pixels</span><span style="font-size: 13px; color: rgb(51, 51, 51);">|</span><span style="font-size: 13px; color: rgb(68, 85, 136);">meters</span><span style="font-size: 13px; color: rgb(51, 51, 51);">}</span>
+
+<span style="font-size: 15px; color: rgb(51, 51, 51);">如果表示物品的数量，字段名 </span><span style="font-size: 15px; color: rgb(51, 51, 51);">应该（should）</span><span style="font-size: 15px; color: rgb(51, 51, 51);"> 使用 </span><span style="font-size: 13px; color: rgb(199, 37, 78);">_count</span><span style="font-size: 15px; color: rgb(51, 51, 51);"> 做为后缀，如 </span><span style="font-size: 13px; color: rgb(199, 37, 78);">node_count</span><span style="font-size: 15px; color: rgb(51, 51, 51);">。</span>
+
+<span style="font-size: 24px; color: rgb(51, 51, 51);">List 过滤字段</span>
+
+* * *
+
+<span style="font-size: 15px; color: rgb(51, 51, 51);">如果 </span><span style="font-size: 13px; color: rgb(199, 37, 78);">List</span><span style="font-size: 15px; color: rgb(51, 51, 51);"> 方法支持过滤资源，包含过滤表达式的字段 </span><span style="font-size: 15px; color: rgb(51, 51, 51);">应该（should）</span><span style="font-size: 15px; color: rgb(51, 51, 51);"> 命名为 </span><span style="font-size: 13px; color: rgb(199, 37, 78);">filter</span><span style="font-size: 15px; color: rgb(51, 51, 51);">。例：</span>
+
+<span style="font-size: 13px; color: rgb(51, 51, 51);">message</span> <span style="font-size: 13px; color: rgb(51, 51, 51);"></span> <span style="font-size: 13px; color: rgb(68, 85, 136);">ListBooksRequest</span> <span style="font-size: 13px; color: rgb(51, 51, 51);">{</span> <span style="font-size: 13px; color: rgb(153, 153, 136);">// 父资源名</span> <span style="font-size: 13px; color: rgb(51, 51, 51);"></span> <span style="font-size: 13px; color: rgb(0, 134, 179);">string</span> <span style="font-size: 13px; color: rgb(51, 51, 51);">parent =</span> <span style="font-size: 13px; color: rgb(0, 128, 128);">1</span><span style="font-size: 13px; color: rgb(51, 51, 51);">;</span> <span style="font-size: 13px; color: rgb(153, 153, 136);">// 过滤表达式</span> <span style="font-size: 13px; color: rgb(51, 51, 51);"></span> <span style="font-size: 13px; color: rgb(0, 134, 179);">string</span> <span style="font-size: 13px; color: rgb(51, 51, 51);">filter =</span> <span style="font-size: 13px; color: rgb(0, 128, 128);">2</span><span style="font-size: 13px; color: rgb(51, 51, 51);">;}</span>
+
+<span style="font-size: 24px; color: rgb(51, 51, 51);">List 响应</span>
+
+* * *
+
+<span style="font-size: 13px; color: rgb(199, 37, 78);">List</span><span style="font-size: 15px; color: rgb(51, 51, 51);"> 方法的响应消息中包含资源列表的字段名字 </span><span style="font-size: 15px; color: rgb(51, 51, 51);">必须（must）</span><span style="font-size: 15px; color: rgb(51, 51, 51);"> 是资源名的复数形式。例如，方法 </span><span style="font-size: 13px; color: rgb(199, 37, 78);">CalendarApi.ListEvents()</span><span style="font-size: 15px; color: rgb(51, 51, 51);"> </span><span style="font-size: 15px; color: rgb(51, 51, 51);">必须（must）</span><span style="font-size: 15px; color: rgb(51, 51, 51);"> 定义响应消息 </span><span style="font-size: 13px; color: rgb(199, 37, 78);">ListEventsResponse</span><span style="font-size: 15px; color: rgb(51, 51, 51);">，此消息中包含名为 </span><span style="font-size: 13px; color: rgb(199, 37, 78);">events</span><span style="font-size: 15px; color: rgb(51, 51, 51);"> 的重复字段来用于返回资源列表。</span>
+
+<span style="font-size: 13px; color: rgb(51, 51, 51);">service</span> <span style="font-size: 13px; color: rgb(51, 51, 51);"></span> <span style="font-size: 13px; color: rgb(68, 85, 136);">CalendarApi</span> <span style="font-size: 13px; color: rgb(51, 51, 51);">{</span> <span style="font-size: 13px; color: rgb(51, 51, 51);">rpc</span> <span style="font-size: 13px; color: rgb(51, 51, 51);">ListEvents(ListEventsRequest)</span> <span style="font-size: 13px; color: rgb(51, 51, 51);">returns</span> <span style="font-size: 13px; color: rgb(51, 51, 51);">(ListEventsResponse) { option (google.api.http) = { get: "/v3/{parent=calendars/*}/events"; }; }}</span><span style="font-size: 13px; color: rgb(51, 51, 51);">message</span> <span style="font-size: 13px; color: rgb(51, 51, 51);"></span> <span style="font-size: 13px; color: rgb(68, 85, 136);">ListEventsRequest</span> <span style="font-size: 13px; color: rgb(51, 51, 51);">{</span> <span style="font-size: 13px; color: rgb(0, 134, 179);">string</span> <span style="font-size: 13px; color: rgb(51, 51, 51);">parent =</span> <span style="font-size: 13px; color: rgb(0, 128, 128);">1</span><span style="font-size: 13px; color: rgb(51, 51, 51);">;</span> <span style="font-size: 13px; color: rgb(0, 134, 179);">int32</span> <span style="font-size: 13px; color: rgb(51, 51, 51);">page_size =</span> <span style="font-size: 13px; color: rgb(0, 128, 128);">2</span><span style="font-size: 13px; color: rgb(51, 51, 51);">;</span> <span style="font-size: 13px; color: rgb(0, 134, 179);">string</span> <span style="font-size: 13px; color: rgb(51, 51, 51);">page_token =</span> <span style="font-size: 13px; color: rgb(0, 128, 128);">3</span><span style="font-size: 13px; color: rgb(51, 51, 51);">;}</span><span style="font-size: 13px; color: rgb(51, 51, 51);">message</span> <span style="font-size: 13px; color: rgb(51, 51, 51);"></span> <span style="font-size: 13px; color: rgb(68, 85, 136);">ListEventsResponse</span> <span style="font-size: 13px; color: rgb(51, 51, 51);">{</span> <span style="font-size: 13px; color: rgb(51, 51, 51);">repeated</span> <span style="font-size: 13px; color: rgb(51, 51, 51);">Event events =</span> <span style="font-size: 13px; color: rgb(0, 128, 128);">1</span><span style="font-size: 13px; color: rgb(51, 51, 51);">;</span> <span style="font-size: 13px; color: rgb(0, 134, 179);">string</span> <span style="font-size: 13px; color: rgb(51, 51, 51);">next_page_token =</span> <span style="font-size: 13px; color: rgb(0, 128, 128);">2</span><span style="font-size: 13px; color: rgb(51, 51, 51);">;}</span>
+
+<span style="font-size: 28px; color: rgb(51, 51, 51);">驼峰命名法</span>
+
+* * *
+
+<span style="font-size: 15px; color: rgb(51, 51, 51);">除了字段名和枚举值，在 .proto 文件中的所有定义 </span><span style="font-size: 15px; color: rgb(51, 51, 51);">必须（must）</span><span style="font-size: 15px; color: rgb(51, 51, 51);"> 使用首字母大写的</span>[<span style="font-size: 15px; color: rgb(0, 154, 97);">驼峰命名法</span>](https://google.github.io/styleguide/javaguide.html#s5.3-camel-case)<span style="font-size: 15px; color: rgb(51, 51, 51);">。</span>
+
+<span style="font-size: 28px; color: rgb(51, 51, 51);">名字缩写</span>
+
+* * *
+
+<span style="font-size: 15px; color: rgb(51, 51, 51);">对于像 </span><span style="font-size: 13px; color: rgb(199, 37, 78);">config</span><span style="font-size: 15px; color: rgb(51, 51, 51);"> 和 </span><span style="font-size: 13px; color: rgb(199, 37, 78);">spec</span><span style="font-size: 15px; color: rgb(51, 51, 51);"> 这种被软件工程师熟知的缩写，在 API 定义中 </span><span style="font-size: 15px; color: rgb(51, 51, 51);">应该（should）</span><span style="font-size: 15px; color: rgb(51, 51, 51);"> 使用缩写而不是其完整形式，这会使代码便于读写。在正式的文档中 </span><span style="font-size: 15px; color: rgb(51, 51, 51);">应该（should）</span><span style="font-size: 15px; color: rgb(51, 51, 51);"> 使用其完整形式。例如：</span>
+
+*   config (configuration)
+*   id (identifier)
+*   spec (specification)
+*   stats (statistics)
+
 <h1 id="8-Common-Design-Patterns"><code>设计模式</code></h1>
+
+<span style="font-size: 28px; color: rgb(51, 51, 51);">空响应体</span>
+
+* * *
+
+<span style="font-size: 15px; color: rgb(51, 51, 51);">标准的 </span><span style="font-size: 13px; color: rgb(199, 37, 78);">Delete</span><span style="font-size: 15px; color: rgb(51, 51, 51);"> 方法 </span><span style="font-size: 15px; color: rgb(51, 51, 51);">必须（must）</span><span style="font-size: 15px; color: rgb(51, 51, 51);"> 返回 </span><span style="font-size: 13px; color: rgb(199, 37, 78);">google.protobuf.Empty</span><span style="font-size: 15px; color: rgb(51, 51, 51);"> 来实现全局一致性。它还可以防止客户端依赖于在重试期间不可用的附加元数据。因为随着时间推移对于自定义方法， 对于自定义方法，它们 </span><span style="font-size: 15px; color: rgb(51, 51, 51);">必须（must）</span><span style="font-size: 15px; color: rgb(51, 51, 51);"> 具有自己的 </span><span style="font-size: 13px; color: rgb(199, 37, 78);">XxxResponse</span><span style="font-size: 15px; color: rgb(51, 51, 51);"> 消息，即使它们是空的，因为功能很可能随着时间的推移而增加，并且需要返回附加数据。</span>
+
+<span style="font-size: 28px; color: rgb(51, 51, 51);">范围字段</span>
+
+* * *
+
+<span style="font-size: 15px; color: rgb(51, 51, 51);">表示范围的字段 </span><span style="font-size: 15px; color: rgb(51, 51, 51);">应该（should）</span><span style="font-size: 15px; color: rgb(51, 51, 51);"> 使用符合命名约定的半开半闭区间 </span><span style="font-size: 13px; color: rgb(199, 37, 78);">[start_xxx, end_xxx)</span><span style="font-size: 15px; color: rgb(51, 51, 51);">，例如 </span><span style="font-size: 13px; color: rgb(199, 37, 78);">[start_key, end_key)</span><span style="font-size: 15px; color: rgb(51, 51, 51);"> 或 </span><span style="font-size: 13px; color: rgb(199, 37, 78);">[start_time, end_time)</span><span style="font-size: 15px; color: rgb(51, 51, 51);">。C++ STL 和 Java 标准库经常使用半开半闭的语义。API </span><span style="font-size: 15px; color: rgb(51, 51, 51);">应该（should）</span><span style="font-size: 15px; color: rgb(51, 51, 51);"> 避免使用表示区间的其他方法，例如 </span><span style="font-size: 13px; color: rgb(199, 37, 78);">(index, count)</span><span style="font-size: 15px; color: rgb(51, 51, 51);"> 或 </span><span style="font-size: 13px; color: rgb(199, 37, 78);">[first, last]</span><span style="font-size: 15px; color: rgb(51, 51, 51);">。</span>
+
+<span style="font-size: 28px; color: rgb(51, 51, 51);">资源标签</span>
+
+* * *
+
+<span style="font-size: 15px; color: rgb(51, 51, 51);">在面向资源的 API 中，资源结构由 API 定义。为了允许客户端向资源附加少量且简单的元数据（例如将一台虚拟机资源标记为数据库服务器），API </span><span style="font-size: 15px; color: rgb(51, 51, 51);">应该（should）</span><span style="font-size: 15px; color: rgb(51, 51, 51);"> 使用在 </span><span style="font-size: 13px; color: rgb(199, 37, 78);">google.api.LabelDescriptor</span><span style="font-size: 15px; color: rgb(51, 51, 51);"> 中描述的资源标签设计模式。</span>
+
+<span style="font-size: 15px; color: rgb(51, 51, 51);">API </span><span style="font-size: 15px; color: rgb(51, 51, 51);">应该（should）</span><span style="font-size: 15px; color: rgb(51, 51, 51);"> 在资源定义中添加字段 </span><span style="font-size: 13px; color: rgb(199, 37, 78);">map<string, string> labels</span><span style="font-size: 15px; color: rgb(51, 51, 51);">：</span>
+
+<span style="font-size: 13px; color: rgb(51, 51, 51);">message</span> <span style="font-size: 13px; color: rgb(51, 51, 51);"></span> <span style="font-size: 13px; color: rgb(68, 85, 136);">Book</span> <span style="font-size: 13px; color: rgb(51, 51, 51);">{</span> <span style="font-size: 13px; color: rgb(0, 134, 179);">string</span> <span style="font-size: 13px; color: rgb(51, 51, 51);">name =</span> <span style="font-size: 13px; color: rgb(0, 128, 128);">1</span><span style="font-size: 13px; color: rgb(51, 51, 51);">; map<</span><span style="font-size: 13px; color: rgb(0, 134, 179);">string</span><span style="font-size: 13px; color: rgb(51, 51, 51);">,</span> <span style="font-size: 13px; color: rgb(0, 134, 179);">string</span><span style="font-size: 13px; color: rgb(51, 51, 51);">> labels =</span> <span style="font-size: 13px; color: rgb(0, 128, 128);">2</span><span style="font-size: 13px; color: rgb(51, 51, 51);">;}</span>
+
+<span style="font-size: 28px; color: rgb(51, 51, 51);">耗时操作</span>
+
+* * *
+
+<span style="font-size: 15px; color: rgb(51, 51, 51);">如果一个 API 方法需要花费较长时间运行，可以将其设计成向客户端返回一个表示长时间运行的资源，客户端可通过这个资源来获取操作的执行进度并取得执行结果。</span>[<span style="font-size: 15px; color: rgb(0, 154, 97);">Operation</span>](https://github.com/googleapis/googleapis/blob/master/google/longrunning/operations.proto)<span style="font-size: 15px; color: rgb(51, 51, 51);"> 定义了耗时操作的标准接口。</span><span style="font-size: 15px; color: rgb(51, 51, 51);">不能（must not）</span><span style="font-size: 15px; color: rgb(51, 51, 51);"> 为 API 使用自定义的耗时操作接口以免打破一致性。</span>
+
+<span style="font-size: 15px; color: rgb(51, 51, 51);">资源 </span><span style="font-size: 15px; color: rgb(51, 51, 51);">必须（must）</span><span style="font-size: 15px; color: rgb(51, 51, 51);"> 作为响应消息直接返回，并且对资源操作的结果 </span><span style="font-size: 15px; color: rgb(51, 51, 51);">应该（should）</span><span style="font-size: 15px; color: rgb(51, 51, 51);"> 反应在 API 中。例如：当创建资源时这个资源 </span><span style="font-size: 15px; color: rgb(51, 51, 51);">应该（should）</span><span style="font-size: 15px; color: rgb(51, 51, 51);"> 显示在 LIST 和 GET 方法中，并且 </span><span style="font-size: 15px; color: rgb(51, 51, 51);">应该（should）</span><span style="font-size: 15px; color: rgb(51, 51, 51);"> 指示出这个资源还没有准备好。如果方法不需要长期执行，当操作完成时 </span><span style="font-size: 13px; color: rgb(199, 37, 78);">Operation.response</span><span style="font-size: 15px; color: rgb(51, 51, 51);"> 字段应该包含直接返回的消息。</span>
+
+<span style="font-size: 28px; color: rgb(51, 51, 51);">列表分页</span>
+
+* * *
+
+<span style="font-size: 15px; color: rgb(51, 51, 51);">即使结果集很小，可 LIST 的集合也 </span><span style="font-size: 15px; color: rgb(51, 51, 51);">应该（should）</span><span style="font-size: 15px; color: rgb(51, 51, 51);"> 支持分页。</span>
+
+<span style="font-size: 15px; color: rgb(51, 51, 51);">理由：尽管向已有的 API 添加分页功能从 API 的视角来看是纯粹的增加功能，但它实际会改变行为。不知道有分页功能的已有客户端会错误地将取到的第一页数据当成全部数据。</span>
+
+<span style="font-size: 15px; color: rgb(51, 51, 51);">为了在 </span><span style="font-size: 13px; color: rgb(199, 37, 78);">List</span><span style="font-size: 15px; color: rgb(51, 51, 51);"> 方法中支持分页， API </span><span style="font-size: 15px; color: rgb(51, 51, 51);">应该（shall）</span><span style="font-size: 15px; color: rgb(51, 51, 51);">：</span>
+
+*   在 <span style="font-size: 13px; color: rgb(199, 37, 78);">List</span> 方法的请求信息中定义一个 <span style="font-size: 13px; color: rgb(199, 37, 78);">string</span> 字段 <span style="font-size: 13px; color: rgb(199, 37, 78);">page_token</span>。客户端通过这个字段来请求指定的某一页。
+*   在 <span style="font-size: 13px; color: rgb(199, 37, 78);">List</span> 方法的请求信息中定义一个 <span style="font-size: 13px; color: rgb(199, 37, 78);">int32</span> 字段 <span style="font-size: 13px; color: rgb(199, 37, 78);">page_size</span>。客户端通过这个字段来指定返回结果的最大数量。服务端可以进一步限制在单个页面中返回的最大结果数量。<span style="font-size: 13px; color: rgb(199, 37, 78);">page_size</span> 是 0 时，将由服务端决定返回结果的数量。
+*   在 <span style="font-size: 13px; color: rgb(199, 37, 78);">List</span> 方法的响应信息中定义一个 <span style="font-size: 13px; color: rgb(199, 37, 78);">string</span> 字段 <span style="font-size: 13px; color: rgb(199, 37, 78);">next_page_token</span>。这个字段表示取得下一页的页码。空字符串表示没有更多数据了。
+
+<span style="font-size: 15px; color: rgb(51, 51, 51);">为了取得下一页的结果，客户端 </span><span style="font-size: 15px; color: rgb(51, 51, 51);">应该（shall）</span><span style="font-size: 15px; color: rgb(51, 51, 51);"> 将响应中的 </span><span style="font-size: 13px; color: rgb(199, 37, 78);">next_page_token</span><span style="font-size: 15px; color: rgb(51, 51, 51);"> 传入下次的请求：</span>
+
+<span style="font-size: 13px; color: rgb(51, 51, 51);">rpc</span> <span style="font-size: 13px; color: rgb(51, 51, 51);">ListBooks(ListBooksRequest)</span> <span style="font-size: 13px; color: rgb(51, 51, 51);">returns</span> <span style="font-size: 13px; color: rgb(51, 51, 51);">(ListBooksResponse);</span><span style="font-size: 13px; color: rgb(51, 51, 51);">message</span> <span style="font-size: 13px; color: rgb(51, 51, 51);"></span> <span style="font-size: 13px; color: rgb(68, 85, 136);">ListBooksRequest</span> <span style="font-size: 13px; color: rgb(51, 51, 51);">{</span> <span style="font-size: 13px; color: rgb(0, 134, 179);">string</span> <span style="font-size: 13px; color: rgb(51, 51, 51);">name =</span> <span style="font-size: 13px; color: rgb(0, 128, 128);">1</span><span style="font-size: 13px; color: rgb(51, 51, 51);">;</span> <span style="font-size: 13px; color: rgb(0, 134, 179);">int32</span> <span style="font-size: 13px; color: rgb(51, 51, 51);">page_size =</span> <span style="font-size: 13px; color: rgb(0, 128, 128);">2</span><span style="font-size: 13px; color: rgb(51, 51, 51);">;</span> <span style="font-size: 13px; color: rgb(0, 134, 179);">string</span> <span style="font-size: 13px; color: rgb(51, 51, 51);">page_token =</span> <span style="font-size: 13px; color: rgb(0, 128, 128);">3</span><span style="font-size: 13px; color: rgb(51, 51, 51);">;}</span><span style="font-size: 13px; color: rgb(51, 51, 51);">message</span> <span style="font-size: 13px; color: rgb(51, 51, 51);"></span> <span style="font-size: 13px; color: rgb(68, 85, 136);">ListBooksResponse</span> <span style="font-size: 13px; color: rgb(51, 51, 51);">{</span> <span style="font-size: 13px; color: rgb(51, 51, 51);">repeated</span> <span style="font-size: 13px; color: rgb(51, 51, 51);">Book books =</span> <span style="font-size: 13px; color: rgb(0, 128, 128);">1</span><span style="font-size: 13px; color: rgb(51, 51, 51);">;</span> <span style="font-size: 13px; color: rgb(0, 134, 179);">string</span> <span style="font-size: 13px; color: rgb(51, 51, 51);">next_page_token =</span> <span style="font-size: 13px; color: rgb(0, 128, 128);">2</span><span style="font-size: 13px; color: rgb(51, 51, 51);">;}</span>
+
+<span style="font-size: 15px; color: rgb(51, 51, 51);">当客户端在 query 参数传入除 page token 之外的参数时，如果 query 参数与 page token 不一致，服务 </span><span style="font-size: 15px; color: rgb(51, 51, 51);">必须（must）</span><span style="font-size: 15px; color: rgb(51, 51, 51);"> 拒绝此请求。</span>
+
+<span style="font-size: 15px; color: rgb(51, 51, 51);">page token 的内容 </span><span style="font-size: 15px; color: rgb(51, 51, 51);">应该（should）</span><span style="font-size: 15px; color: rgb(51, 51, 51);"> 是对 web 安全的 BASE64 编码后的 protocol buffer，这样就不会有兼容性问题。page token 中存在敏感信息时，</span><span style="font-size: 15px; color: rgb(51, 51, 51);">应该（should）</span><span style="font-size: 15px; color: rgb(51, 51, 51);"> 将其加密。服务端 </span><span style="font-size: 15px; color: rgb(51, 51, 51);">必须（must）</span><span style="font-size: 15px; color: rgb(51, 51, 51);"> 通过以下方法来防止通过篡改 page token 来获取敏感信息的问题：</span>
+
+*   根据后续请求指定 query 参数
+*   在 page token 中仅引用服务端的状态
+*   在 page token 中加密并签名 query 参数，并且在每次调用中对这些参数进行验证和鉴权
+
+<span style="font-size: 15px; color: rgb(51, 51, 51);">分页功能也 </span><span style="font-size: 15px; color: rgb(51, 51, 51);">可以（may）</span><span style="font-size: 15px; color: rgb(51, 51, 51);"> 在响应中通过名为 </span><span style="font-size: 13px; color: rgb(199, 37, 78);">total_size</span><span style="font-size: 15px; color: rgb(51, 51, 51);"> 类型为 </span><span style="font-size: 13px; color: rgb(199, 37, 78);">int32</span><span style="font-size: 15px; color: rgb(51, 51, 51);"> 的字段来提供查询资源的总数量。</span>
+
+<span style="font-size: 28px; color: rgb(51, 51, 51);">列出子集合</span>
+
+* * *
+
+<span style="font-size: 15px; color: rgb(51, 51, 51);">API 有时需要客户端对子集合进行 </span><span style="font-size: 13px; color: rgb(199, 37, 78);">List/Search</span><span style="font-size: 15px; color: rgb(51, 51, 51);"> 操作。例如一个 API 有</span><span style="font-size: 13px; color: rgb(199, 37, 78);">书架</span><span style="font-size: 15px; color: rgb(51, 51, 51);">集合，每个书架有</span><span style="font-size: 13px; color: rgb(199, 37, 78);">书</span><span style="font-size: 15px; color: rgb(51, 51, 51);">的集合，客户端想要在所有书架中搜索一本书。这种情况下推荐在子集合上使用标准的 </span><span style="font-size: 13px; color: rgb(199, 37, 78);">List</span><span style="font-size: 15px; color: rgb(51, 51, 51);">，并且为父集合指定通配符 </span><span style="font-size: 13px; color: rgb(199, 37, 78);">"-"</span><span style="font-size: 15px; color: rgb(51, 51, 51);">。例如：</span>
+
+<span style="font-size: 13px; color: rgb(51, 51, 51);">GET https:</span><span style="font-size: 13px; color: rgb(0, 153, 38);">//</span><span style="font-size: 13px; color: rgb(51, 51, 51);">library.googleapis.com</span><span style="font-size: 13px; color: rgb(0, 153, 38);">/v1/</span><span style="font-size: 13px; color: rgb(51, 51, 51);">shelves</span><span style="font-size: 13px; color: rgb(0, 153, 38);">/-/</span><span style="font-size: 13px; color: rgb(51, 51, 51);">books?filter=xxx</span>
+
+<span style="font-size: 15px; color: rgb(51, 51, 51);">注意：使用 </span><span style="font-size: 13px; color: rgb(199, 37, 78);">"-"</span><span style="font-size: 15px; color: rgb(51, 51, 51);"> 而非 </span><span style="font-size: 13px; color: rgb(199, 37, 78);">"*"</span><span style="font-size: 15px; color: rgb(51, 51, 51);"> 是为了避免 URL 转义。</span>
+
+<span style="font-size: 28px; color: rgb(51, 51, 51);">从子集合中取得唯一资源</span>
+
+* * *
+
+<span style="font-size: 15px; color: rgb(51, 51, 51);">有时子集合中的资源具有在其父集合内唯一的标识符，在这种情况下通过 </span><span style="font-size: 13px; color: rgb(199, 37, 78);">Get</span><span style="font-size: 15px; color: rgb(51, 51, 51);"> 来取得某资源而不需要知道它的父集合可能是有用的。在这种情况下，建议使用标准 </span><span style="font-size: 13px; color: rgb(199, 37, 78);">Get</span><span style="font-size: 15px; color: rgb(51, 51, 51);">，并为资源唯一的所有父集合指定通配符 </span><span style="font-size: 13px; color: rgb(199, 37, 78);">"-"</span><span style="font-size: 15px; color: rgb(51, 51, 51);">。例如：</span>
+
+<span style="font-size: 13px; color: rgb(51, 51, 51);">GET https:</span><span style="font-size: 13px; color: rgb(0, 153, 38);">//</span><span style="font-size: 13px; color: rgb(51, 51, 51);">library.googleapis.com</span><span style="font-size: 13px; color: rgb(0, 153, 38);">/v1/</span><span style="font-size: 13px; color: rgb(51, 51, 51);">shelves</span><span style="font-size: 13px; color: rgb(0, 153, 38);">/-/</span><span style="font-size: 13px; color: rgb(51, 51, 51);">books</span><span style="font-size: 13px; color: rgb(0, 153, 38);">/{id}</span>
+
+<span style="font-size: 15px; color: rgb(51, 51, 51);">响应 </span><span style="font-size: 15px; color: rgb(51, 51, 51);">必须（must）</span><span style="font-size: 15px; color: rgb(51, 51, 51);"> 使用资源的带有父集合标识符的规范名称。例如上面的请求应该返回名称类似 </span><span style="font-size: 13px; color: rgb(199, 37, 78);">shelves/shelf713/books/book8141</span><span style="font-size: 15px; color: rgb(51, 51, 51);"> 的资源，而不是 </span><span style="font-size: 13px; color: rgb(199, 37, 78);">shelves/-/books/book8141</span><span style="font-size: 15px; color: rgb(51, 51, 51);">。</span>
+
+<span style="font-size: 28px; color: rgb(51, 51, 51);">排序</span>
+
+* * *
+
+<span style="font-size: 15px; color: rgb(51, 51, 51);">如果 API 方法允许客户端指定列表结果的排序顺序，请求消息中 </span><span style="font-size: 15px; color: rgb(51, 51, 51);">应该（should）</span><span style="font-size: 15px; color: rgb(51, 51, 51);"> 包含如下字段：</span>
+
+<span style="font-size: 13px; color: rgb(0, 134, 179);">string</span><span style="font-size: 13px; color: rgb(51, 51, 51);"> order_by = ...;</span>
+
+<span style="font-size: 15px; color: rgb(51, 51, 51);">这个值 </span><span style="font-size: 15px; color: rgb(51, 51, 51);">应该（should）</span><span style="font-size: 15px; color: rgb(51, 51, 51);"> 遵循 SQL 语法：用逗号分隔的字段列表。例如：</span><span style="font-size: 13px; color: rgb(199, 37, 78);">"foo,bar"</span><span style="font-size: 15px; color: rgb(51, 51, 51);">。默认升序排列。</span><span style="font-size: 15px; color: rgb(51, 51, 51);">应该（should）</span><span style="font-size: 15px; color: rgb(51, 51, 51);"> 给字段添加后缀 </span><span style="font-size: 13px; color: rgb(199, 37, 78);">" desc"</span><span style="font-size: 15px; color: rgb(51, 51, 51);"> 来表示降序。例如：</span><span style="font-size: 13px; color: rgb(199, 37, 78);">"foo desc,bar"</span><span style="font-size: 15px; color: rgb(51, 51, 51);">。</span>
+
+<span style="font-size: 15px; color: rgb(51, 51, 51);">多余的空格可以忽略，</span><span style="font-size: 13px; color: rgb(199, 37, 78);">"foo,bar desc"</span><span style="font-size: 15px; color: rgb(51, 51, 51);"> 和 </span><span style="font-size: 13px; color: rgb(199, 37, 78);">" foo , bar desc "</span><span style="font-size: 15px; color: rgb(51, 51, 51);">是相等的。</span>
+
+<span style="font-size: 28px; color: rgb(51, 51, 51);">请求校验</span>
+
+* * *
+
+<span style="font-size: 15px; color: rgb(51, 51, 51);">如果 API 方法有副作用，并且需要仅验证请求而不产生副作用，请求消息 </span><span style="font-size: 15px; color: rgb(51, 51, 51);">应该（should）</span><span style="font-size: 15px; color: rgb(51, 51, 51);"> 包含一个字段：</span>
+
+<span style="font-size: 13px; color: rgb(51, 51, 51);">bool </span><span style="font-size: 13px; color: rgb(51, 51, 51);">validate_only = ...</span><span style="font-size: 13px; color: rgb(153, 153, 136);">;</span>
+
+<span style="font-size: 15px; color: rgb(51, 51, 51);">当此字段设置为 </span><span style="font-size: 13px; color: rgb(199, 37, 78);">true</span><span style="font-size: 15px; color: rgb(51, 51, 51);"> 时，服务端 </span><span style="font-size: 15px; color: rgb(51, 51, 51);">一定不要（must not）</span><span style="font-size: 15px; color: rgb(51, 51, 51);"> 执行任何有副作用的操作，而是对请求进行校验。</span>
+
+<span style="font-size: 15px; color: rgb(51, 51, 51);">校验成功时 </span><span style="font-size: 15px; color: rgb(51, 51, 51);">一定（must）</span><span style="font-size: 15px; color: rgb(51, 51, 51);"> 要返回</span><span style="font-size: 13px; color: rgb(199, 37, 78);">google.rpc.Code.OK</span><span style="font-size: 15px; color: rgb(51, 51, 51);">，并且使用相同请求信息的完整请求 </span><span style="font-size: 15px; color: rgb(51, 51, 51);">不应该（should not）</span><span style="font-size: 15px; color: rgb(51, 51, 51);"> 返回 </span><span style="font-size: 13px; color: rgb(199, 37, 78);">google.rpc.Code.INVALID_ARGUMENT</span><span style="font-size: 15px; color: rgb(51, 51, 51);">。注意，可能因为其他错误（比如 </span><span style="font-size: 13px; color: rgb(199, 37, 78);">google.rpc.Code.ALREADY_EXISTS</span><span style="font-size: 15px; color: rgb(51, 51, 51);"> 或竞态条件）此请求还是会失败。</span>
+
+<span style="font-size: 28px; color: rgb(51, 51, 51);">请求重入</span>
+
+* * *
+
+<span style="font-size: 15px; color: rgb(51, 51, 51);">对于网络 API，幂等是很重要的，因为当有网络异常时它们能够安全地进行重试。然而一些 API 并不容易实现幂等性，例如需要避免不必要重复的创建资源操作。对于这类情况，请求信息 </span><span style="font-size: 15px; color: rgb(51, 51, 51);">应该（should）</span><span style="font-size: 15px; color: rgb(51, 51, 51);"> 包含一个唯一 ID（例如 UUID），这样服务端能够通过此 ID 来检测重复，保证请求只被处理一次。</span>
+
+<span style="font-size: 13px; color: rgb(153, 153, 136);">// 服务端用于检测重复请求的唯一 ID</span><span style="font-size: 13px; color: rgb(153, 153, 136);">// 此字段应该命名为 `request_id`</span><span style="font-size: 13px; color: rgb(0, 134, 179);">string</span> <span style="font-size: 13px; color: rgb(51, 51, 51);">request_id = ...;</span>
+
+<span style="font-size: 15px; color: rgb(51, 51, 51);">因为客户端很可能没有接收到之前的响应，所以当检测到重复请求后，服务端 </span><span style="font-size: 15px; color: rgb(51, 51, 51);">应该（should）</span><span style="font-size: 15px; color: rgb(51, 51, 51);"> 返回之前成功的响应。</span>
+
+<span style="font-size: 28px; color: rgb(51, 51, 51);">枚举默认值</span>
+
+* * *
+
+<span style="font-size: 15px; color: rgb(51, 51, 51);">每个枚举定义 </span><span style="font-size: 15px; color: rgb(51, 51, 51);">必须（must）</span><span style="font-size: 15px; color: rgb(51, 51, 51);"> 以 </span><span style="font-size: 13px; color: rgb(199, 37, 78);">0</span><span style="font-size: 15px; color: rgb(51, 51, 51);"> 值开始，用于当枚举值没有明确指定时。API </span><span style="font-size: 15px; color: rgb(51, 51, 51);">必须（must）</span><span style="font-size: 15px; color: rgb(51, 51, 51);"> 在文档中说明如何处理 </span><span style="font-size: 13px; color: rgb(199, 37, 78);">0</span><span style="font-size: 15px; color: rgb(51, 51, 51);">值。</span>
+
+<span style="font-size: 15px; color: rgb(51, 51, 51);">如果有通用的默认行为，</span><span style="font-size: 15px; color: rgb(51, 51, 51);">应该（should）</span><span style="font-size: 15px; color: rgb(51, 51, 51);"> 使用枚举值 </span><span style="font-size: 13px; color: rgb(199, 37, 78);">0</span><span style="font-size: 15px; color: rgb(51, 51, 51);">。API 应该在文档中说明期待的行为。</span>
+
+<span style="font-size: 15px; color: rgb(51, 51, 51);">如果没有通用的默认行为，枚举值 </span><span style="font-size: 13px; color: rgb(199, 37, 78);">0</span><span style="font-size: 15px; color: rgb(51, 51, 51);"> </span><span style="font-size: 15px; color: rgb(51, 51, 51);">应该（should）</span><span style="font-size: 15px; color: rgb(51, 51, 51);"> 命名为 </span><span style="font-size: 13px; color: rgb(199, 37, 78);">ENUM_TYPE_UNSPECIFIED</span><span style="font-size: 15px; color: rgb(51, 51, 51);"> 并且和错误 </span><span style="font-size: 13px; color: rgb(199, 37, 78);">INVALID_ARGUMENT</span><span style="font-size: 15px; color: rgb(51, 51, 51);">一起使用。</span>
+
+<span style="font-size: 13px; color: rgb(51, 51, 51);">enum</span> <span style="font-size: 13px; color: rgb(51, 51, 51);"></span> <span style="font-size: 13px; color: rgb(68, 85, 136);">Isolation</span> <span style="font-size: 13px; color: rgb(51, 51, 51);">{ /</span><span style="font-size: 13px; color: rgb(0, 153, 38);">/ 未指定 ISOLATION_UNSPECIFIED = 0; // 快照读。如果所有读写都不能在并发事务中逻辑地序列化，则会发生冲突 SERIALIZABLE = 1; // 快照读。并发事务向同一行写入时导致冲突 SNAPSHOT = 2; ...}// 当未指定时，服务器将使用 SNAPSHOT 或更高的隔离级别Isolation level = 1;</span>
+
+<span style="font-size: 15px; color: rgb(51, 51, 51);">一个惯用名称 </span><span style="font-size: 15px; color: rgb(51, 51, 51);">可以（may）</span><span style="font-size: 15px; color: rgb(51, 51, 51);"> 用于 </span><span style="font-size: 13px; color: rgb(199, 37, 78);">0</span><span style="font-size: 15px; color: rgb(51, 51, 51);"> 值，例如，</span><span style="font-size: 13px; color: rgb(199, 37, 78);">google.rpc.Code.OK</span><span style="font-size: 15px; color: rgb(51, 51, 51);"> 是指定不存在错误的惯用方法。在这种情况下，</span><span style="font-size: 13px; color: rgb(199, 37, 78);">OK</span><span style="font-size: 15px; color: rgb(51, 51, 51);">与枚举类型中的 </span><span style="font-size: 13px; color: rgb(199, 37, 78);">UNSPECIFIED</span><span style="font-size: 15px; color: rgb(51, 51, 51);"> 在语义上是相等的。</span>
+
+<span style="font-size: 15px; color: rgb(51, 51, 51);">在存在本质上合理和安全的默认情况下，</span><span style="font-size: 15px; color: rgb(51, 51, 51);">可以（may）</span><span style="font-size: 15px; color: rgb(51, 51, 51);"> 使用 </span><span style="font-size: 13px; color: rgb(199, 37, 78);">0</span><span style="font-size: 15px; color: rgb(51, 51, 51);"> 值。例如，在[资源视图]()枚举中 </span><span style="font-size: 13px; color: rgb(199, 37, 78);">BASIC</span><span style="font-size: 15px; color: rgb(51, 51, 51);"> 是 </span><span style="font-size: 13px; color: rgb(199, 37, 78);">0</span><span style="font-size: 15px; color: rgb(51, 51, 51);"> 值。</span>
+
+<span style="font-size: 28px; color: rgb(51, 51, 51);">语法句法</span>
+
+* * *
+
+<span style="font-size: 15px; color: rgb(51, 51, 51);">在某些 API 设计中，有必要为某些数据格式定义简单的语法，例如可接受的文本输入。为了在不同 API 中提供一致的开发体验和减少学习曲线，API 设计者 </span><span style="font-size: 15px; color: rgb(51, 51, 51);">必须（must）</span><span style="font-size: 15px; color: rgb(51, 51, 51);"> 使用 </span>[<span style="font-size: 15px; color: rgb(0, 154, 97);">ISO 14977</span>](http://www.iso.org/iso/catalogue_detail?csnumber=26153)<span style="font-size: 15px; color: rgb(51, 51, 51);"> 扩展的 Backus-Naur 表格（EBNF）句法来定义这些语法。</span>
+
+<span style="font-size: 13px; color: rgb(0, 0, 128);">Production</span> <span style="font-size: 13px; color: rgb(51, 51, 51);">= name</span> <span style="font-size: 13px; color: rgb(221, 17, 68);">"="</span> <span style="font-size: 13px; color: rgb(51, 51, 51);">[ Expression ]</span> <span style="font-size: 13px; color: rgb(221, 17, 68);">";"</span> <span style="font-size: 13px; color: rgb(51, 51, 51);">;</span><span style="font-size: 13px; color: rgb(0, 0, 128);">Expression</span> <span style="font-size: 13px; color: rgb(51, 51, 51);">= Alternative {</span> <span style="font-size: 13px; color: rgb(221, 17, 68);">"|"</span> <span style="font-size: 13px; color: rgb(51, 51, 51);">Alternative } ;</span><span style="font-size: 13px; color: rgb(0, 0, 128);">Alternative</span> <span style="font-size: 13px; color: rgb(51, 51, 51);">= Term { Term } ;</span><span style="font-size: 13px; color: rgb(0, 0, 128);">Term</span> <span style="font-size: 13px; color: rgb(51, 51, 51);">= name | TOKEN | Group | Option | Repetition ;</span><span style="font-size: 13px; color: rgb(0, 0, 128);">Group</span> <span style="font-size: 13px; color: rgb(51, 51, 51);">=</span> <span style="font-size: 13px; color: rgb(221, 17, 68);">"("</span> <span style="font-size: 13px; color: rgb(51, 51, 51);">Expression</span> <span style="font-size: 13px; color: rgb(221, 17, 68);">")"</span> <span style="font-size: 13px; color: rgb(51, 51, 51);">;</span><span style="font-size: 13px; color: rgb(0, 0, 128);">Option</span> <span style="font-size: 13px; color: rgb(51, 51, 51);">=</span> <span style="font-size: 13px; color: rgb(221, 17, 68);">"["</span> <span style="font-size: 13px; color: rgb(51, 51, 51);">Expression</span> <span style="font-size: 13px; color: rgb(221, 17, 68);">"]"</span> <span style="font-size: 13px; color: rgb(51, 51, 51);">;</span><span style="font-size: 13px; color: rgb(0, 0, 128);">Repetition</span> <span style="font-size: 13px; color: rgb(51, 51, 51);">=</span> <span style="font-size: 13px; color: rgb(221, 17, 68);">"{"</span> <span style="font-size: 13px; color: rgb(51, 51, 51);">Expression</span> <span style="font-size: 13px; color: rgb(221, 17, 68);">"}"</span> <span style="font-size: 13px; color: rgb(51, 51, 51);">;</span>
+
+<span style="font-size: 15px; color: rgb(51, 51, 51);">注意：</span><span style="font-size: 13px; color: rgb(199, 37, 78);">TOKEN</span><span style="font-size: 15px; color: rgb(51, 51, 51);"> 表示在语法之外定义的终端。</span>
+
+<span style="font-size: 28px; color: rgb(51, 51, 51);">整数类型</span>
+
+* * *
+
+<span style="font-size: 15px; color: rgb(51, 51, 51);">在API 设计中，</span><span style="font-size: 15px; color: rgb(51, 51, 51);">不应该（should not）</span><span style="font-size: 15px; color: rgb(51, 51, 51);"> 使用像 </span><span style="font-size: 13px; color: rgb(199, 37, 78);">uint32</span><span style="font-size: 15px; color: rgb(51, 51, 51);"> 和 </span><span style="font-size: 13px; color: rgb(199, 37, 78);">fixed32</span><span style="font-size: 15px; color: rgb(51, 51, 51);"> 这种无符号整型，这是因为一些重要的编程语言和系统（例如 Java, JavaScript 和 OpenAPI）不能很好地支持它们并且更容易导致溢出的问题。另一个问题是，不同的 API 很可能对同一个资源使用不匹配的有符号和无符号类型。</span>
+
+<span style="font-size: 15px; color: rgb(51, 51, 51);">在大小和时间这种负数没有意义的类型中 </span><span style="font-size: 15px; color: rgb(51, 51, 51);">可以（may）</span><span style="font-size: 15px; color: rgb(51, 51, 51);"> 使用且仅使用 </span><span style="font-size: 13px; color: rgb(199, 37, 78);">-1</span><span style="font-size: 15px; color: rgb(51, 51, 51);"> 来表示特定的意义，例如到在文件结尾（EOF）、无穷的时间、无资源限额或未知的年纪。当这样使用负数时，</span><span style="font-size: 15px; color: rgb(51, 51, 51);">必须（must）</span><span style="font-size: 15px; color: rgb(51, 51, 51);"> 在文档中明确说明以防止混淆。API 生成器也应该在文档中记录隐式默认值 </span><span style="font-size: 13px; color: rgb(199, 37, 78);">0</span><span style="font-size: 15px; color: rgb(51, 51, 51);"> 表示的行为。</span>
+
+<span style="font-size: 28px; color: rgb(51, 51, 51);">部分响应</span>
+
+* * *
+
+<span style="font-size: 15px; color: rgb(51, 51, 51);">客户端有时只需要响应信息中的特定子集。一些 API 平台提供了对部分响应的原生支持。Google API 平台通过响应字段掩码来提供支持。对于任一 REST API 调用，有一个隐式的系统 query 参数 </span><span style="font-size: 13px; color: rgb(199, 37, 78);">$fields</span><span style="font-size: 15px; color: rgb(51, 51, 51);">，它是 </span><span style="font-size: 13px; color: rgb(199, 37, 78);">google.protobuf.FieldMask</span><span style="font-size: 15px; color: rgb(51, 51, 51);"> 的 JSON 表示。在返回给客户端之前，响应消息会被 </span><span style="font-size: 13px; color: rgb(199, 37, 78);">$fields</span><span style="font-size: 15px; color: rgb(51, 51, 51);"> 字段过滤。此行为是在 API 平台自动执行的。</span>
+
+<span style="font-size: 13px; color: rgb(51, 51, 51);">GET https:</span><span style="font-size: 13px; color: rgb(0, 153, 38);">//</span><span style="font-size: 13px; color: rgb(51, 51, 51);">library.googleapis.com</span><span style="font-size: 13px; color: rgb(0, 153, 38);">/v1/</span><span style="font-size: 13px; color: rgb(51, 51, 51);">shelves?</span><span style="font-size: 13px; color: rgb(0, 128, 128);">$fields</span><span style="font-size: 13px; color: rgb(51, 51, 51);">=name</span>
+
+<span style="font-size: 28px; color: rgb(51, 51, 51);">资源视图</span>
+
+* * *
+
+<span style="font-size: 15px; color: rgb(51, 51, 51);">为了减少网络流量，允许客户端限制服务器在其响应中返回的资源的哪些部分是有用的，返回资源的视图而不是全部资源表示。API 中的资源视图是通过向请求添加参数来实现的，该参数允许客户端在响应中指定要接收资源的哪个视图。</span>
+
+<span style="font-size: 15px; color: rgb(51, 51, 51);">此参数：</span>
+
+*   应该（should） 是枚举类型
+*   必须（must） 命名为 <span style="font-size: 13px; color: rgb(199, 37, 78);">view</span>
+
+<span style="font-size: 15px; color: rgb(51, 51, 51);">枚举中的每个值定义了资源的哪部分（字段）在响应中会被返回。文档中 </span><span style="font-size: 15px; color: rgb(51, 51, 51);">应该（should）</span><span style="font-size: 15px; color: rgb(51, 51, 51);"> 明确记录每个 </span><span style="font-size: 13px; color: rgb(199, 37, 78);">view</span><span style="font-size: 15px; color: rgb(51, 51, 51);"> 值会返回什么。</span>
+
+<span style="font-size: 13px; color: rgb(51, 51, 51);">package</span> <span style="font-size: 13px; color: rgb(51, 51, 51);">google.example.library.v1;</span><span style="font-size: 13px; color: rgb(51, 51, 51);">service</span> <span style="font-size: 13px; color: rgb(51, 51, 51);"></span> <span style="font-size: 13px; color: rgb(68, 85, 136);">Library</span> <span style="font-size: 13px; color: rgb(51, 51, 51);">{</span> <span style="font-size: 13px; color: rgb(51, 51, 51);">rpc</span> <span style="font-size: 13px; color: rgb(51, 51, 51);">ListBooks(ListBooksRequest)</span> <span style="font-size: 13px; color: rgb(51, 51, 51);">returns</span> <span style="font-size: 13px; color: rgb(51, 51, 51);">(ListBooksResponse) { option (google.api.http) = { get: "/v1/{name=shelves/*}/books" } };}</span><span style="font-size: 13px; color: rgb(51, 51, 51);">enum</span> <span style="font-size: 13px; color: rgb(51, 51, 51);"></span> <span style="font-size: 13px; color: rgb(68, 85, 136);">BookView</span> <span style="font-size: 13px; color: rgb(51, 51, 51);">{</span> <span style="font-size: 13px; color: rgb(153, 153, 136);">// 响应中只包含作者、标题、ISBN 和唯一的图书 ID。这是默认值。</span> <span style="font-size: 13px; color: rgb(51, 51, 51);">BASIC =</span> <span style="font-size: 13px; color: rgb(0, 128, 128);">0</span><span style="font-size: 13px; color: rgb(51, 51, 51);">;</span> <span style="font-size: 13px; color: rgb(153, 153, 136);">// 返回所有信息，包括书中的内容</span> <span style="font-size: 13px; color: rgb(51, 51, 51);">FULL =</span> <span style="font-size: 13px; color: rgb(0, 128, 128);">1</span><span style="font-size: 13px; color: rgb(51, 51, 51);">;}</span><span style="font-size: 13px; color: rgb(51, 51, 51);">message</span> <span style="font-size: 13px; color: rgb(51, 51, 51);"></span> <span style="font-size: 13px; color: rgb(68, 85, 136);">ListBooksRequest</span> <span style="font-size: 13px; color: rgb(51, 51, 51);">{</span> <span style="font-size: 13px; color: rgb(0, 134, 179);">string</span> <span style="font-size: 13px; color: rgb(51, 51, 51);">name =</span> <span style="font-size: 13px; color: rgb(0, 128, 128);">1</span><span style="font-size: 13px; color: rgb(51, 51, 51);">;</span> <span style="font-size: 13px; color: rgb(153, 153, 136);">// 指定返回图书资源的哪些部分</span> <span style="font-size: 13px; color: rgb(51, 51, 51);">BookView view =</span> <span style="font-size: 13px; color: rgb(0, 128, 128);">2</span><span style="font-size: 13px; color: rgb(51, 51, 51);">;}</span>
+
+<span style="font-size: 15px; color: rgb(51, 51, 51);">对应的 URL：</span>
+
+<span style="font-size: 13px; color: rgb(51, 51, 51);">GET https:</span><span style="font-size: 13px; color: rgb(0, 153, 38);">//</span><span style="font-size: 13px; color: rgb(51, 51, 51);">library.googleapis.com</span><span style="font-size: 13px; color: rgb(0, 153, 38);">/v1/</span><span style="font-size: 13px; color: rgb(51, 51, 51);">shelves</span><span style="font-size: 13px; color: rgb(0, 153, 38);">/shelf1/</span><span style="font-size: 13px; color: rgb(51, 51, 51);">books?view=BASIC</span>
+
+<span style="font-size: 15px; color: rgb(51, 51, 51);">可以在 </span>[<span style="font-size: 15px; color: rgb(0, 154, 97);">标准方法</span>](http://tailnode.tk/2017/03/google-api-design-guide/standard-methods/)<span style="font-size: 15px; color: rgb(51, 51, 51);"> 一章中查看更多关于方法定义、请求和响应的内容。</span>
+
+<span style="font-size: 28px; color: rgb(51, 51, 51);">ETag</span>
+
+* * *
+
+<span style="font-size: 15px; color: rgb(51, 51, 51);">ETag 是一个不透明的标识符，允许客户端进行条件请求。为了支持 ETag，API </span><span style="font-size: 15px; color: rgb(51, 51, 51);">应该（should）</span><span style="font-size: 15px; color: rgb(51, 51, 51);"> 在资源定义中包含一个字符串字段 </span><span style="font-size: 13px; color: rgb(199, 37, 78);">etag</span><span style="font-size: 15px; color: rgb(51, 51, 51);">，它的语义 </span><span style="font-size: 15px; color: rgb(51, 51, 51);">必须(must)</span><span style="font-size: 15px; color: rgb(51, 51, 51);"> 与 ETag的常用用法相匹配。通常，</span><span style="font-size: 13px; color: rgb(199, 37, 78);">etag</span><span style="font-size: 15px; color: rgb(51, 51, 51);"> 包含由服务器计算出的资源指纹。更多详细信息，请参阅</span>[<span style="font-size: 15px; color: rgb(0, 154, 97);">维基百科</span>](https://en.wikipedia.org/wiki/HTTP_ETag)<span style="font-size: 15px; color: rgb(51, 51, 51);">和 </span>[<span style="font-size: 15px; color: rgb(0, 154, 97);">RFC 7232</span>](https://tools.ietf.org/html/rfc7232#section-2.3)<span style="font-size: 15px; color: rgb(51, 51, 51);">。</span>
+
+<span style="font-size: 15px; color: rgb(51, 51, 51);">ETags 可以强验证或弱验证，其中弱验证的ETag 以 </span><span style="font-size: 13px; color: rgb(199, 37, 78);">W /</span><span style="font-size: 15px; color: rgb(51, 51, 51);"> 为前缀。在这种情况下，强验证意味着具有相同 ETag 的两个资源具有相同的内容和相同的额外字段（Content-Type）。这意味着强验证的 ETag 允许缓存稍后组装的部分响应。</span>
+
+<span style="font-size: 15px; color: rgb(51, 51, 51);">相反，具有相同弱验证 ETag 值的资源意味着这些表示在语义上是等效的，但不一定每字节都相同，因此不适合于字节范围请求的响应缓存。</span>
+
+<span style="font-size: 13px; color: rgb(153, 153, 136);">// 强验证的 ETag（包含引号）</span><span style="font-size: 13px; color: rgb(221, 17, 68);">"1a2f3e4d5b6c7c"</span><span style="font-size: 13px; color: rgb(153, 153, 136);">// 弱验证的 ETag（包含前缀和引号）</span><span style="font-size: 13px; color: rgb(51, 51, 51);">W/</span><span style="font-size: 13px; color: rgb(221, 17, 68);">"1a2b3c4d5ef"</span>
+
+<span style="font-size: 28px; color: rgb(51, 51, 51);">输出字段</span>
+
+* * *
+
+<span style="font-size: 15px; color: rgb(51, 51, 51);">API 可能希望将由客户端提供的字段和只由服务端在特定资源上返回的字段进行区分。对于仅输出的字段，</span><span style="font-size: 15px; color: rgb(51, 51, 51);">必须（shall）</span><span style="font-size: 15px; color: rgb(51, 51, 51);">记录字段属性。</span>
+
+<span style="font-size: 15px; color: rgb(51, 51, 51);">请注意，如果客户端在请求中设置了仅输出（output only）字段，或者客户端使用仅输出字段指定了一个 </span><span style="font-size: 13px; color: rgb(199, 37, 78);">google.protobuf.FieldMask</span><span style="font-size: 15px; color: rgb(51, 51, 51);">，则服务器 </span><span style="font-size: 15px; color: rgb(51, 51, 51);">必须（must）</span><span style="font-size: 15px; color: rgb(51, 51, 51);"> 接受该请求而不能出错。这意味着服务器 </span><span style="font-size: 15px; color: rgb(51, 51, 51);">必须（must）</span><span style="font-size: 15px; color: rgb(51, 51, 51);"> 忽略仅输出字段的存在及其任何指示。这个建议的原因是因为客户端通常会将服务器返回的资源重用为另一个请求的输入，例如一个获取到的 </span><span style="font-size: 13px; color: rgb(199, 37, 78);">Book</span><span style="font-size: 15px; color: rgb(51, 51, 51);"> 将在 UPDATE 方法中被再次使用。如果要验证仅输出字段，客户端需要做清除输出字段的额外工作。</span>
+
+<span style="font-size: 13px; color: rgb(51, 51, 51);">message</span> <span style="font-size: 13px; color: rgb(51, 51, 51);"></span> <span style="font-size: 13px; color: rgb(68, 85, 136);">Book</span> <span style="font-size: 13px; color: rgb(51, 51, 51);">{</span> <span style="font-size: 13px; color: rgb(0, 134, 179);">string</span> <span style="font-size: 13px; color: rgb(51, 51, 51);">name =</span> <span style="font-size: 13px; color: rgb(0, 128, 128);">1</span><span style="font-size: 13px; color: rgb(51, 51, 51);">;</span> <span style="font-size: 13px; color: rgb(153, 153, 136);">// 只用做输出</span> <span style="font-size: 13px; color: rgb(51, 51, 51);">Timestamp create_time =</span> <span style="font-size: 13px; color: rgb(0, 128, 128);">2</span><span style="font-size: 13px; color: rgb(51, 51, 51);">;}</span>
+
 <h1 id="9-Protocol-Buffers-v3"><code>使用 proto3</code></h1>
+
+[<span style="font-size: 15px; color: rgb(0, 56, 132);">使用 Proto3</span>](https://segmentfault.com/a/1190000009157513) <span style="font-size: 15px; color: rgb(51, 51, 51);">这一章讨论在 API 设计中如何使用 Protocol Buffer。为了简化开发体验并提高运行效率，gPRC API</span><span style="font-size: 15px; color: rgb(51, 51, 51);">应该（should）</span><span style="font-size: 15px; color: rgb(51, 51, 51);"> 在 API 定义时使用 Protocol Buffers 第 3 版（proto3）。</span>
+
+[<span style="font-size: 15px; color: rgb(0, 154, 97);">Protocol Buffer</span>](https://github.com/google/protobuf)<span style="font-size: 15px; color: rgb(51, 51, 51);"> 是一个为了定义数据结构和编程接口的语言独立平台独立的简单的接口定义语言（IDL）。它支持二进制和文本格式，并且能够在不同的平台不同的协议中使用。</span>
+
+<span style="font-size: 15px; color: rgb(51, 51, 51);">proto3 是 Protocol Buffer 的最新版本，与 proto2 比有如下改变：</span>
+
+*   原始字段（primitive fields）不再支持 <span style="font-size: 13px; color: rgb(199, 37, 78);">hasField</span>。未设置的原始字段有语言相关的默认值。
+
+*   消息字段仍然可用，可以使用编译器生成的 <span style="font-size: 13px; color: rgb(199, 37, 78);">hasField</span> 方法或与 null 进行比较或与由具体实现定义的哨兵值比较。
+
+*   不再支持用户自定义的字段默认值
+*   枚举定义 必须（must） 以 0 开始
+*   不再支持 required 字段
+*   不再支持扩展（extensions），请使用 <span style="font-size: 13px; color: rgb(199, 37, 78);">google.protobuf.Any</span>
+
+*   由于向后兼容性和运行时兼容性的原因，<span style="font-size: 13px; color: rgb(199, 37, 78);">google/protobuf/descriptor.proto</span> 特殊例外
+
+*   删除了组语法（group）
+
+<span style="font-size: 15px; color: rgb(51, 51, 51);">删除这些特性是为了让 API 的设计更加简洁可靠和提高性能。例如在记录日志前经常需要过滤一些敏感字段，但当字段是 required 时，这种操作是不可能的。</span>
+
+<span style="font-size: 15px; color: rgb(51, 51, 51);">查看 </span>[<span style="font-size: 15px; color: rgb(0, 154, 97);">Protocol Buffers</span>](https://developers.google.com/protocol-buffers/)<span style="font-size: 15px; color: rgb(51, 51, 51);"> 获取更多信息。</span>
+
 <h1 id="10-Versioning"><code>版本管理</code></h1>
 <h1 id="11-Compatibility"><code>兼容性</code></h1>
 <h1 id="12-Directory-Structure"><code>目录结构</code></h1>

@@ -1067,6 +1067,241 @@ get: "/v3/events:batchGet"
 <span style="font-size: 15px; color: rgb(51, 51, 51);">查看 </span>[<span style="font-size: 15px; color: rgb(0, 154, 97);">Protocol Buffers</span>](https://developers.google.com/protocol-buffers/)<span style="font-size: 15px; color: rgb(51, 51, 51);"> 获取更多信息。</span>
 
 <h1 id="10-Versioning"><code>版本管理</code></h1>
+
+<span style="font-size: 15px; color: rgb(51, 51, 51);">这一章是网络 API 的版本控制指南。因为一个 API 服务 </span><span style="font-size: 15px; color: rgb(51, 51, 51);">可以（may）</span><span style="font-size: 15px; color: rgb(51, 51, 51);"> 提供多个 </span>[<span style="font-size: 15px; color: rgb(0, 154, 97);">API 接口</span>](http://tailnode.tk/2017/04/google-api-design-guide/glossary/#interface)<span style="font-size: 15px; color: rgb(51, 51, 51);">，</span>[<span style="font-size: 15px; color: rgb(0, 154, 97);">API 版本</span>](http://tailnode.tk/2017/04/google-api-design-guide/glossary/#version)<span style="font-size: 15px; color: rgb(51, 51, 51);">策略应用在 API 接口上而不是 </span>[<span style="font-size: 15px; color: rgb(0, 154, 97);">API 服务</span>](http://tailnode.tk/2017/04/google-api-design-guide/glossary/#service)<span style="font-size: 15px; color: rgb(51, 51, 51);">。为了方便，下面的 API 表示 API 接口。</span>
+
+<span style="font-size: 15px; color: rgb(51, 51, 51);">网络 API </span><span style="font-size: 15px; color: rgb(51, 51, 51);">应该（should）</span><span style="font-size: 15px; color: rgb(51, 51, 51);"> 使用 </span>[<span style="font-size: 15px; color: rgb(0, 154, 97);">Semantic Versioning</span>](http://semver.org/)<span style="font-size: 15px; color: rgb(51, 51, 51);">。对于版本号 </span><span style="font-size: 13px; color: rgb(199, 37, 78);">MAJOR.MINOR.PATCH</span><span style="font-size: 15px; color: rgb(51, 51, 51);">：</span>
+
+1.  有不兼容的升级时，增加 <span style="font-size: 13px; color: rgb(199, 37, 78);">MAJOR</span>
+2.  添加了能向后兼容的新功能时，增加 <span style="font-size: 13px; color: rgb(199, 37, 78);">MINOR</span>
+3.  修改了能向后兼容的 BUG 时，增加 <span style="font-size: 13px; color: rgb(199, 37, 78);">PATCH</span>
+
+<span style="font-size: 15px; color: rgb(51, 51, 51);">根据 API 版本的不同，</span><span style="font-size: 15px; color: rgb(51, 51, 51);">major 版本号</span><span style="font-size: 15px; color: rgb(51, 51, 51);">使用不同的规则：</span>
+
+*   对于 version 1(v1)，major 部分 应该（should） 加上 proto 的包名字，例如 <span style="font-size: 13px; color: rgb(199, 37, 78);">google.pubsub.v1</span>。如果包名包含稳定的类型并且接口不会有不兼容的改变，major 部分 可以（may） 忽略版本号，例如：<span style="font-size: 13px; color: rgb(199, 37, 78);">google.protobuf</span> 和 <span style="font-size: 13px; color: rgb(199, 37, 78);">google.longrunning</span>。
+*   对于除 v1 外的所有版本，major 版本号 必须（must） 加上 proto 的包名字。例如 <span style="font-size: 13px; color: rgb(199, 37, 78);">google.pubsub.v2</span>。
+
+<span style="font-size: 15px; color: rgb(51, 51, 51);">对于 pre-GA 的发布（例如 alpha 和 beta），推荐在版本号中添加后缀，后缀 </span><span style="font-size: 15px; color: rgb(51, 51, 51);">应该（should）</span><span style="font-size: 15px; color: rgb(51, 51, 51);"> 以 pre-release 的版本名（例如 alpha、beta）和可选的 pre-release 版本号组成。</span>
+
+<span style="font-size: 15px; color: rgb(51, 51, 51);">版本进度的例子：</span>
+
+| <span style="color: rgb(0, 0, 0);">Version</span> | <span style="color: rgb(0, 0, 0);">Proto Package</span> | <span style="color: rgb(0, 0, 0);">Description</span> |
+| --- | --- | --- |
+| <span style="color: rgb(0, 0, 0);">v1alpha</span> | <span style="color: rgb(0, 0, 0);">v1alpha1</span> | <span style="color: rgb(0, 0, 0);">v1 alpha 发布</span> |
+| <span style="color: rgb(0, 0, 0);">v1beta1</span> | <span style="color: rgb(0, 0, 0);">v1beta1</span> | <span style="color: rgb(0, 0, 0);">v1 beta 第一次发布</span> |
+| <span style="color: rgb(0, 0, 0);">v1beta2</span> | <span style="color: rgb(0, 0, 0);">v1beta2</span> | <span style="color: rgb(0, 0, 0);">v1 beta 第二次发布</span> |
+| <span style="color: rgb(0, 0, 0);">v1test</span> | <span style="color: rgb(0, 0, 0);">v1test</span> | <span style="color: rgb(0, 0, 0);">带有假数据的内部测试版</span> |
+| <span style="color: rgb(0, 0, 0);">v1</span> | <span style="color: rgb(0, 0, 0);">v1</span> | <span style="color: rgb(0, 0, 0);">major 的版本是 v1，可正式使用</span> |
+| <span style="color: rgb(0, 0, 0);">v1.1beta1</span> | <span style="color: rgb(0, 0, 0);">v1p1beta1</span> | <span style="color: rgb(0, 0, 0);">对 v1 版的首次小版本（minor）修改的 beta 发布</span> |
+| <span style="color: rgb(0, 0, 0);">v1.1</span> | <span style="color: rgb(0, 0, 0);">v1</span> | <span style="color: rgb(0, 0, 0);">小版本升级到 v1.1</span> |
+| <span style="color: rgb(0, 0, 0);">v2beta1</span> | <span style="color: rgb(0, 0, 0);">v2beta1</span> | <span style="color: rgb(0, 0, 0);">v2 beta 第一次发布</span> |
+| <span style="color: rgb(0, 0, 0);">v2</span> | <span style="color: rgb(0, 0, 0);">v2</span> | <span style="color: rgb(0, 0, 0);">major 的版本是 v2，可正式使用</span> |
+
+<span style="font-size: 15px; color: rgb(51, 51, 51);">minor 和 patch 的版本号 </span><span style="font-size: 15px; color: rgb(51, 51, 51);">应该（should）</span><span style="font-size: 15px; color: rgb(51, 51, 51);"> 表现在 API 配置和文档中，</span><span style="font-size: 15px; color: rgb(51, 51, 51);">一定不要（must not）</span><span style="font-size: 15px; color: rgb(51, 51, 51);"> 写在 proto 的包名中。</span>
+
+<span style="font-size: 15px; color: rgb(51, 51, 51);">注意</span><span style="font-size: 15px; color: rgb(51, 51, 51);">：Google API 平台目前没有原生支持 minor 和 patch。对于每一个 major 版本只有一套文件和客户端的库。API 作者需要通过文档和发布日志手动记录 minor 和 patch。</span>
+
+<span style="font-size: 15px; color: rgb(51, 51, 51);">新的 major 版本号 </span><span style="font-size: 15px; color: rgb(51, 51, 51);">一定不要（must not）</span><span style="font-size: 15px; color: rgb(51, 51, 51);"> 依赖 </span><span style="font-size: 15px; color: rgb(51, 51, 51);">相同 API</span><span style="font-size: 15px; color: rgb(51, 51, 51);"> 之前的 major 版本。在了解相关联的依赖性和稳定性风险后，API </span><span style="font-size: 15px; color: rgb(51, 51, 51);">可以（may）</span><span style="font-size: 15px; color: rgb(51, 51, 51);"> 依赖其他 API。一个稳定的 API 版本 </span><span style="font-size: 15px; color: rgb(51, 51, 51);">必须（must）</span><span style="font-size: 15px; color: rgb(51, 51, 51);"> 只依赖其他 API 的最新稳定版本。</span>
+
+<span style="font-size: 15px; color: rgb(51, 51, 51);">在一段时间内，相同 API 的不同版本 </span><span style="font-size: 15px; color: rgb(51, 51, 51);">必须（must）</span><span style="font-size: 15px; color: rgb(51, 51, 51);"> 在单个客户端中同时工作。这样才能帮助客户端从旧版 API 平滑迁移到新版 API。</span>
+
+<span style="font-size: 15px; color: rgb(51, 51, 51);">只有当没有依赖后旧版本 API 才能被删除。</span>
+
+<span style="font-size: 15px; color: rgb(51, 51, 51);">被多个 API 共享的通用稳定的数据类型（例如日期和时间） </span><span style="font-size: 15px; color: rgb(51, 51, 51);">应该（should）</span><span style="font-size: 15px; color: rgb(51, 51, 51);"> 定义在单独的 proto 包中。如果有必要进行不兼容的修改，则 </span><span style="font-size: 15px; color: rgb(51, 51, 51);">必须（must）</span><span style="font-size: 15px; color: rgb(51, 51, 51);"> 引入新的类型或包含新 major 版本的包。</span>
+
+* * *
+
+<span style="font-size: 28px; color: rgb(51, 51, 51);">向后兼容</span>
+
+<span style="font-size: 15px; color: rgb(51, 51, 51);">定义什么是向后兼容的修改是比较困难的。</span>
+
+<span style="font-size: 15px; color: rgb(51, 51, 51);">下面列出了一些，但如果你有任何疑问，点击</span>[<span style="font-size: 15px; color: rgb(0, 154, 97);">这里</span>](http://tailnode.tk/2017/04/google-api-design-guide/compatibility/)<span style="font-size: 15px; color: rgb(51, 51, 51);">查看详情。</span>
+
+* * *
+
+<span style="font-size: 24px; color: rgb(51, 51, 51);">保持向后兼容的修改</span>
+
+*   向 API 服务中添加 API 接口
+*   向 API 接口中添加方法
+*   向方法添加 HTTP 绑定
+*   向请求信息添加字段
+*   向响应信息添加字段
+*   向枚举添加值
+*   添加只输出（output-only）的资源字段
+
+* * *
+
+<span style="font-size: 24px; color: rgb(51, 51, 51);">破坏向后兼容的修改</span>
+
+*   删除/重命名服务、接口、字段名、方法或枚举值
+*   修改 HTTP 绑定
+*   修改字段类型
+*   修改资源名的格式
+*   修改已有请求的可见性（visible behavior）
+*   在 HTTP 定义中修改 URL 格式
+*   在资源消息中添加读/写字段
+
 <h1 id="11-Compatibility"><code>兼容性</code></h1>
+
+<span style="font-size: 15px; color: rgb(51, 51, 51);">本章提供了有关</span>[<span style="font-size: 15px; color: rgb(0, 154, 97);">版本控制</span>](http://tailnode.tk/2017/04/google-api-design-guide/versioning/)<span style="font-size: 15px; color: rgb(51, 51, 51);">部分中给出的破坏和保持兼容性修改的详细说明。</span>
+
+<span style="font-size: 15px; color: rgb(51, 51, 51);">并不总是绝对清楚什么是不兼容的修改，这篇指南 </span><span style="font-size: 15px; color: rgb(51, 51, 51);">应该（should）</span><span style="font-size: 15px; color: rgb(51, 51, 51);"> 被当成参考性的，而不是覆盖到所有情况。</span>
+
+<span style="font-size: 15px; color: rgb(51, 51, 51);">下面列出的这些规则只涉及客户端兼容性，默认 API 作者了解部署（包括实现细节的变化）的需求。</span>
+
+<span style="font-size: 15px; color: rgb(51, 51, 51);">一般的目标是服务端升级 minor 或 patch 不能影响客户端的兼容性：</span>
+
+*   代码兼容：针对 1.0 编写的代码在 1.1 上编译失败
+*   二进制兼容：针对 1.0 编译的代码与 1.1 客户端的库链接/运行失败（具体的细节依赖客户端，不同情况有不同变化）
+*   协议兼容：针对 1.0 构建的程序与 1.1 服务端通信失败
+*   语义兼容：所有组件都能运行但产生意想不到的结果
+
+<span style="font-size: 15px; color: rgb(51, 51, 51);">简而言之：旧的客户端应该与相同 major 版本的新服务端正常工作，并且能够轻松地升级到新的 minor 版本。</span>
+
+<span style="font-size: 15px; color: rgb(51, 51, 51);">由于客户端使用了自动生成和手写的代码，除了理论上的基于协议的考虑，还有一些实际的问题。通过生成新版本的客户端库来测试你的修改，并保证测试通过。</span>
+
+<span style="font-size: 15px; color: rgb(51, 51, 51);">下面的讨论将 proto 信息分为三类：</span>
+
+*   请求信息（例如 <span style="font-size: 13px; color: rgb(199, 37, 78);">GetBookRequest</span>）
+*   响应信息（例如 <span style="font-size: 13px; color: rgb(199, 37, 78);">ListBooksResponse</span>）
+*   资源信息（例如 <span style="font-size: 13px; color: rgb(199, 37, 78);">Book</span>，包括在其他资源消息中使用的任何消息）
+
+<span style="font-size: 15px; color: rgb(51, 51, 51);">这三类有不同的规则，例如请求信息只会从客户端发送到服务端，响应信息只会从服务端发送到客户端，但资源信息一般会在两者之间互相发送。尤其是可被修改的资源需要根据读取/修改/写入的循环来考虑。</span>
+
+<span style="font-size: 28px; color: rgb(51, 51, 51);">保持向后兼容的修改</span>
+
+<span style="font-size: 24px; color: rgb(51, 51, 51);">向 API 服务中添加 API 接口</span>
+
+<span style="font-size: 15px; color: rgb(51, 51, 51);">从协议的角度看，这种修改总是安全的。唯一需要考虑的是客户端库可能已经通过手写的代码使用了新 API 接口的名字。如果新接口与其它完全正交，这种情况不太可能发生。如果是已存接口的简化版本，则很可能引起冲突。</span>
+
+<span style="font-size: 24px; color: rgb(51, 51, 51);">向 API 接口中添加方法</span>
+
+* * *
+
+<span style="font-size: 15px; color: rgb(51, 51, 51);">除非添加了一个与现有客户端库中方法冲突的方法，这种修改没有问题。</span>
+
+<span style="font-size: 15px; color: rgb(51, 51, 51);">一个会破坏兼容性的例子：如果有 </span><span style="font-size: 13px; color: rgb(199, 37, 78);">GetFoo</span><span style="font-size: 15px; color: rgb(51, 51, 51);"> 方法，C# 代码生成器已经创建了 </span><span style="font-size: 13px; color: rgb(199, 37, 78);">GetFoo</span><span style="font-size: 15px; color: rgb(51, 51, 51);"> 和 </span><span style="font-size: 13px; color: rgb(199, 37, 78);">GetFooAsync</span><span style="font-size: 15px; color: rgb(51, 51, 51);"> 方法。因此从客户端角度来看，在 API 接口中添加 </span><span style="font-size: 13px; color: rgb(199, 37, 78);">GetFooAsync</span><span style="font-size: 15px; color: rgb(51, 51, 51);"> 方法将会破坏兼容性。</span>
+
+<span style="font-size: 24px; color: rgb(51, 51, 51);">向方法添加 HTTP 绑定</span>
+
+* * *
+
+<span style="font-size: 15px; color: rgb(51, 51, 51);">假设绑定没有引入任何歧义，使服务端响应以前被拒绝的 URL 是安全的。当将现有操作应用于新的资源名称时，</span><span style="font-size: 15px; color: rgb(51, 51, 51);">可能（may）</span><span style="font-size: 15px; color: rgb(51, 51, 51);"> 会这样做。</span>
+
+<span style="font-size: 24px; color: rgb(51, 51, 51);">向请求信息添加字段</span>
+
+* * *
+
+<span style="font-size: 15px; color: rgb(51, 51, 51);">添加请求字段可以是兼容的，只要不指定该字段的客户端在新版本中与旧版本表现相同。</span>
+
+<span style="font-size: 15px; color: rgb(51, 51, 51);">会导致错误的最明显例子是分页：如果 API 的 v1.0 版本不支持，除非 </span><span style="font-size: 13px; color: rgb(199, 37, 78);">page_size</span><span style="font-size: 15px; color: rgb(51, 51, 51);"> 默认值是无穷大（这样是不好的）才能在 v1.1 中加入分页。否则 v1.0 的客户端原本希望通过一次请求取得所有结果，但实际只能取到一部分。</span>
+
+<span style="font-size: 24px; color: rgb(51, 51, 51);">向响应信息添加字段</span>
+
+* * *
+
+<span style="font-size: 15px; color: rgb(51, 51, 51);">只要不改变其他响应字段的行为，就可以扩展不是资源的响应消息（例如ListBooksResponse），而不会破坏兼容性。即使导致冗余，任何在旧的响应消息中的字段也应该存在于新的响应中并保持它原来的语义。</span>
+
+<span style="font-size: 15px; color: rgb(51, 51, 51);">例如，1.0 中的一个查询请求的响应有 bool 类型的字段 </span><span style="font-size: 13px; color: rgb(199, 37, 78);">contained_duplicates</span><span style="font-size: 15px; color: rgb(51, 51, 51);"> 来指示因为重复而忽略掉的结果。在 1.1 中，我们在 </span><span style="font-size: 13px; color: rgb(199, 37, 78);">duplicate_count</span><span style="font-size: 15px; color: rgb(51, 51, 51);"> 字段中提供更详细的信息，尽管从 1.1 版本来看是多余的，但 </span><span style="font-size: 13px; color: rgb(199, 37, 78);">contained_duplicates</span><span style="font-size: 15px; color: rgb(51, 51, 51);"> 字段 </span><span style="font-size: 15px; color: rgb(51, 51, 51);">必须（must）</span><span style="font-size: 15px; color: rgb(51, 51, 51);"> 要保留。</span>
+
+<span style="font-size: 24px; color: rgb(51, 51, 51);">向枚举添加值</span>
+
+* * *
+
+<span style="font-size: 15px; color: rgb(51, 51, 51);">只在请求信息中使用的枚举类型可以自由扩展来添加新元素。例如，使用</span>[<span style="font-size: 15px; color: rgb(0, 154, 97);">资源视图</span>](http://tailnode.tk/2017/04/google-api-design-guide/design-patterns/#)<span style="font-size: 15px; color: rgb(51, 51, 51);">时，新的视图能够添加到新 minor 版本中。客户端从来不需要接收此枚举，所以也不需要关心它。</span>
+
+<span style="font-size: 15px; color: rgb(51, 51, 51);">对于资源消息和响应消息，默认假设客户端应该处理它意识不到的枚举值。但是 API 作者应该意识到编写能够正确处理新枚举值的代码可能是困难的。</span><span style="font-size: 15px; color: rgb(51, 51, 51);">应该（should）</span><span style="font-size: 15px; color: rgb(51, 51, 51);"> 在文档中记录当遇到未知枚举值时客户端的期望行为。</span>
+
+<span style="font-size: 15px; color: rgb(51, 51, 51);">proto3 允许客户端接收它们不关心的值并且当执行重新序列化消息时会保持值不变，所以这样就不会打破读取/修改/写入循环的兼容性。JSON 格式允许发送数值，其中该值的“名称”是未知的，但是服务端通常不会知道客户端是否真正知道特定值。因此 JSON 客户端可能知道它们已经收到了以前对他们未知的值，但他们只会看到名称或数字而不是两个都有。在读取/修改/写入循环中将相同的值返回给服务端不应该修改这个值，因为服务端应该理解这两种形式。</span>
+
+<span style="font-size: 24px; color: rgb(51, 51, 51);">添加只输出（output-only）的资源字段</span>
+
+* * *
+
+<span style="font-size: 15px; color: rgb(51, 51, 51);">可以（may）</span><span style="font-size: 15px; color: rgb(51, 51, 51);"> 添加仅由服务端提供的资源实体中的字段。服务端 </span><span style="font-size: 15px; color: rgb(51, 51, 51);">可以（may）</span><span style="font-size: 15px; color: rgb(51, 51, 51);"> 验证请求中的值是否有效，但是如果该值被省略则 </span><span style="font-size: 15px; color: rgb(51, 51, 51);">一定不能（must not）</span><span style="font-size: 15px; color: rgb(51, 51, 51);"> 失败。</span>
+
+<span style="font-size: 28px; color: rgb(51, 51, 51);">破坏向后兼容的修改</span>
+
+<span style="font-size: 24px; color: rgb(51, 51, 51);">删除/重命名服务、接口、字段名、方法或枚举值</span>
+
+* * *
+
+<span style="font-size: 15px; color: rgb(51, 51, 51);">从根本上说，如果客户端代码使用了某些字段，那么删除或重命名它将会破坏兼容性，并且 </span><span style="font-size: 15px; color: rgb(51, 51, 51);">必须（must）</span><span style="font-size: 15px; color: rgb(51, 51, 51);"> 增加 major 版本号。引用旧名称的一些语言（如 C# 和 Java）在编译时会失败， 另一些语言会引起运行时异常或数据丢失。协议格式的兼容性在这里是无关紧要的。</span>
+
+<span style="font-size: 24px; color: rgb(51, 51, 51);">修改 HTTP 绑定</span>
+
+* * *
+
+<span style="font-size: 15px; color: rgb(51, 51, 51);">这里的</span><span style="font-size: 13px; color: rgb(199, 37, 78);">修改</span><span style="font-size: 15px; color: rgb(51, 51, 51);">实际指</span><span style="font-size: 13px; color: rgb(199, 37, 78);">删除</span><span style="font-size: 15px; color: rgb(51, 51, 51);">和</span><span style="font-size: 13px; color: rgb(199, 37, 78);">添加</span><span style="font-size: 15px; color: rgb(51, 51, 51);">。例如，你想要支持 PATCH，但已发布的版本支持 PUT，或者已经使用了错误的自定义动词，你 </span><span style="font-size: 15px; color: rgb(51, 51, 51);">可以（may）</span><span style="font-size: 15px; color: rgb(51, 51, 51);"> 添加新的绑定，但是 </span><span style="font-size: 15px; color: rgb(51, 51, 51);">一定不要（must not）</span><span style="font-size: 15px; color: rgb(51, 51, 51);"> 移除旧的，因为和删除服务的方法一样会破坏兼容性。</span>
+
+<span style="font-size: 24px; color: rgb(51, 51, 51);">修改字段类型</span>
+
+* * *
+
+<span style="font-size: 15px; color: rgb(51, 51, 51);">尽管新类型是协议兼容的，能够改变客户端库自动生成的代码，因此 </span><span style="font-size: 15px; color: rgb(51, 51, 51);">必须（must）</span><span style="font-size: 15px; color: rgb(51, 51, 51);"> 要升级 major 版本。会导致需要编译的静态类型的语言在编译期就发生错误。</span>
+
+<span style="font-size: 24px; color: rgb(51, 51, 51);">修改资源名的格式</span>
+
+* * *
+
+<span style="font-size: 15px; color: rgb(51, 51, 51);">资源 </span><span style="font-size: 15px; color: rgb(51, 51, 51);">一定不能（must not）</span><span style="font-size: 15px; color: rgb(51, 51, 51);"> 修改名字－这意味着集合名不能被修改。</span>
+
+<span style="font-size: 15px; color: rgb(51, 51, 51);">不像其他大多数破坏兼容性的修改，这会影响 major 版本号：如果客户端期望使用 v2.0 访问在 v1.0 中创建的资源（或反过来），则应该在两个版本中使用相同的资源名称。</span>
+
+<span style="font-size: 15px; color: rgb(51, 51, 51);">对资源名的验证也 </span><span style="font-size: 15px; color: rgb(51, 51, 51);">不应该（should not）</span><span style="font-size: 15px; color: rgb(51, 51, 51);"> 改变，原因如下：</span>
+
+*   如果验证变严格，之前成功能请求现在可能会失败
+*   如果比之前文档中记录的验证要宽松，依据之前文档的客户端可能会被破坏。客户端很可能在其他地方保存了资源名，并且对字符集和名字的长度敏感。或者，客户端可能会执行自己的资源名称验证来保持与文档一致。（例如，当开始支持 EC2 资源的长 ID 时，[<span style="color: rgb(0, 154, 97);">亚马逊向用户发出了许多警告并提供了迁移的时间</span>](https://aws.amazon.com/blogs/aws/theyre-here-longer-ec2-resource-ids-now-available/)）
+
+<span style="font-size: 15px; color: rgb(51, 51, 51);">请注意这样的修改只能在 proto 的文档中可见。因此当评审 CL 时审查除注释外的修改是不够的。</span>
+
+<span style="font-size: 24px; color: rgb(51, 51, 51);">修改已有请求的可见性（visible behavior）</span>
+
+* * *
+
+<span style="font-size: 15px; color: rgb(51, 51, 51);">客户端总是依赖 API 的行为和语义，</span><span style="font-size: 15px; color: rgb(51, 51, 51);">即使没有明确支持或记录此行为</span><span style="font-size: 15px; color: rgb(51, 51, 51);">。因为在大多数情况下修改 API 的行为和语义在客户端看来是破坏性的。如果某行为不是加密隐藏的，你 </span><span style="font-size: 15px; color: rgb(51, 51, 51);">应该（should）</span><span style="font-size: 15px; color: rgb(51, 51, 51);"> 假设用户已经依赖它了。</span>
+
+<span style="font-size: 15px; color: rgb(51, 51, 51);">因为这个原因加密分页 token 是个好主意，以防止用户创建自己的 token，以及防止当 token 行为发生变化时可能带来的不兼容性。</span>
+
+<span style="font-size: 24px; color: rgb(51, 51, 51);">在 HTTP 定义中修改 URL 格式</span>
+
+* * *
+
+<span style="font-size: 15px; color: rgb(51, 51, 51);">除了上面列出的资源名称的变化，这里还要考虑两种类型的修改：</span>
+
+*   自定义方法名：虽然不是资源名称的一部分，但自定义方法名称是 REST 客户端 POST 请求 URL 的一部分。更改自定义方法名称不应该破坏 gRPC 客户端，但是公共 API 必须假定它们具有 REST 客户端。
+*   资源参数名：从 <span style="font-size: 13px; color: rgb(199, 37, 78);">v1/shelves/{shelf}/books/{book}</span> 到 <span style="font-size: 13px; color: rgb(199, 37, 78);">v1/shelves/{shelf_id}/books/{book_id}</span> 的修改不会影响替代的资源名称，但可能会影响代码生成。
+
+<span style="font-size: 24px; color: rgb(51, 51, 51);">在资源消息中添加读/写字段</span>
+
+* * *
+
+<span style="font-size: 15px; color: rgb(51, 51, 51);">客户端会经常执行读取/修改/写入的操作。大多数客户端不支持它们意识不到的字段值，特别是 proto3 不支持。你可以指定任意消息类型（而不是原始类型）中缺失的字段表示更新时不会被修改，但这样使删除这样的字段变的困难。原始类型（包括 </span><span style="font-size: 13px; color: rgb(199, 37, 78);">string</span><span style="font-size: 15px; color: rgb(51, 51, 51);"> 和 </span><span style="font-size: 13px; color: rgb(199, 37, 78);">bytes</span><span style="font-size: 15px; color: rgb(51, 51, 51);">）不能简单地使用这种方法，因为明确地设置 </span><span style="font-size: 13px; color: rgb(199, 37, 78);">int32</span><span style="font-size: 15px; color: rgb(51, 51, 51);"> 的值为 0 和不对它设置值在 proto3 中并没有区别。</span>
+
+<span style="font-size: 15px; color: rgb(51, 51, 51);">使用字段掩码来进行所有更新操作不会有问题，因为客户端不会隐式覆盖其不知道的字段。然而这是一个不寻常的决定，因为大部分 API 允许全部资源被更新。</span>
+
 <h1 id="12-Directory-Structure"><code>目录结构</code></h1>
+
+<span style="font-size: 15px; color: rgb(51, 51, 51);">通常使用 </span><span style="font-size: 13px; color: rgb(199, 37, 78);">.proto</span><span style="font-size: 15px; color: rgb(51, 51, 51);"> 文件定义 API，使用 </span><span style="font-size: 13px; color: rgb(199, 37, 78);">.yaml</span><span style="font-size: 15px; color: rgb(51, 51, 51);"> 文件做为配置。</span>
+
+<span style="font-size: 15px; color: rgb(51, 51, 51);">每个 API 服务 </span><span style="font-size: 15px; color: rgb(51, 51, 51);">必须（must）</span><span style="font-size: 15px; color: rgb(51, 51, 51);"> 有一个 API 目录来存放定义文件和构建脚本。</span>
+
+<span style="font-size: 15px; color: rgb(51, 51, 51);">API 目录 </span><span style="font-size: 15px; color: rgb(51, 51, 51);">应该（should）</span><span style="font-size: 15px; color: rgb(51, 51, 51);"> 遵循如下的标准结构：</span>
+
+*   API 目录
+*   配置文件
+
+*   {service}.yaml<span style="font-size: 15px; color: rgb(51, 51, 51);">：主服务的配置文件，</span>google.api.Service<span style="font-size: 15px; color: rgb(51, 51, 51);"> 的 YAML 格式</span>
+*   prod.yaml<span style="font-size: 15px; color: rgb(51, 51, 51);">：产品环境配置文件</span>
+*   staging.yaml<span style="font-size: 15px; color: rgb(51, 51, 51);">：Staging 环境配置文件</span>
+*   test.yaml<span style="font-size: 15px; color: rgb(51, 51, 51);">：测试环境配置文件</span>
+*   local.yaml<span style="font-size: 15px; color: rgb(51, 51, 51);">：本地环境配置文件</span>
+
+*   接口定义
+
+*   v[0-9]*/*<span style="font-size: 15px; color: rgb(51, 51, 51);">：每一个子目录包含 API 的一个主版本，主要存放原型文件和构建脚本</span>
+*   {subapi}/v[0-9]*/*<span style="font-size: 15px; color: rgb(51, 51, 51);">：每一个 </span>{subapi}<span style="font-size: 15px; color: rgb(51, 51, 51);"> 目录包含子 API 的接口定义。每个子 API 可以有它独立的主版本号</span>
+*   type/*<span style="font-size: 15px; color: rgb(51, 51, 51);">： 包含类型定义的原型文件，包括这些：在不同 API 间共享的类型、不同 API 版本间共享的类型或 API 与服务实现间共享的类型。一旦发布，</span>type/*<span style="font-size: 15px; color: rgb(51, 51, 51);"> 中定义的类型 </span><span style="font-size: 15px; color: rgb(51, 51, 51);">不应该（should not）</span><span style="font-size: 15px; color: rgb(51, 51, 51);"> 有破坏兼容性的修改。</span>
+
 <h1 id="13-File-Structure"><code>文件结构</code></h1>
+

@@ -213,4 +213,251 @@ Google API Documents Chinese Documents
 
 <span style="font-size: 15px; color: rgb(51, 51, 51);">注意</span><span style="font-size: 15px; color: rgb(51, 51, 51);">：像  </span><span style="font-size: 13px; color: rgb(199, 37, 78);">display_name</span><span style="font-size: 15px; color: rgb(51, 51, 51);">、</span><span style="font-size: 13px; color: rgb(199, 37, 78);">first_name</span><span style="font-size: 15px; color: rgb(51, 51, 51);">、</span><span style="font-size: 13px; color: rgb(199, 37, 78);">last_name</span><span style="font-size: 15px; color: rgb(51, 51, 51);">、</span><span style="font-size: 13px; color: rgb(199, 37, 78);">full_name</span><span style="font-size: 15px; color: rgb(51, 51, 51);">  这种与名字相关的字段 </span><span style="font-size: 15px; color: rgb(51, 51, 51);">应该（should）</span><span style="font-size: 15px; color: rgb(51, 51, 51);"> 给出定义来避免混乱。</span>
 
+<h1 id="4-Standard-Methods"><code>标准方法</code></h1>
+
+[<span style="color: rgb(0, 56, 132);">标准方法</span>](https://segmentfault.com/a/1190000008939076) 此章节定义标准方法 List、Get、Create、Update 和 Delete。标准方法存在的意义是广泛的 API 中许多 API 方法具有非常相似的语义，通过将这些类似的 API 融合到标准方法中，我们可以显著降低复杂性并提高一致性。以 Google APIs 为例，超过 70% 是标准方法，这让它们更加易于学习和使用。
+
+下表描述了如何将它们映射为 REST 方法，也称为 CRUD 方法：
+
+| <span style="color: rgb(0, 0, 0);">方法</span> | <span style="color: rgb(0, 0, 0);">HTTP 映射</span> | <span style="color: rgb(0, 0, 0);">HTTP 请求体</span> | <span style="color: rgb(0, 0, 0);">HTTP 响应体</span> |
+| --- | --- | --- | --- |
+| <span style="color: rgb(0, 0, 0);">List</span> | <span style="color: rgb(0, 0, 0);">GET <集合 URL></span> | <span style="color: rgb(0, 0, 0);">空</span> | <span style="color: rgb(0, 0, 0);">资源[1]列表</span> |
+| <span style="color: rgb(0, 0, 0);">Get</span> | <span style="color: rgb(0, 0, 0);">GET <资源 URL></span> | <span style="color: rgb(0, 0, 0);">空</span> | <span style="color: rgb(0, 0, 0);">资源[1]</span> |
+| <span style="color: rgb(0, 0, 0);">Create</span> | <span style="color: rgb(0, 0, 0);">POST <集合 URL></span> | <span style="color: rgb(0, 0, 0);">资源</span> | <span style="color: rgb(0, 0, 0);">资源[1]</span> |
+| <span style="color: rgb(0, 0, 0);">Update</span> | <span style="color: rgb(0, 0, 0);">PUT 或 PATCH <资源 URL></span> | <span style="color: rgb(0, 0, 0);">资源</span> | <span style="color: rgb(0, 0, 0);">资源[1]</span> |
+| <span style="color: rgb(0, 0, 0);">Delete</span> | <span style="color: rgb(0, 0, 0);">DELETE <资源 URL></span> | <span style="color: rgb(0, 0, 0);">空</span> | <span style="color: rgb(0, 0, 0);">空[2]</span> |
+
+[1] List、Get、Create 和 Update方法支持字段掩码时，返回的资源 可能（may） 只包含部分数据。在某些情况下，API 平台会对所有方法原生支持字段掩码。
+
+[2] 不立即删除资源（比如通过更新标志位或会执行时间较长的删除操作）的 Delete 方法返回的响应 应该（should） 包含长时间运行的操作或被修改的资源。
+
+标准方法也 可以（may） 为不能在一个 API 调用周期完成的请求返回长期运行的操作。
+
+下面章节详细描述了每一个标准方法。这些例子展示了在 .proto 文件中定义的方法，其中包含用于 HTTP 映射的特殊注释。你可以在 Google APIs 项目中找到许多使用标准方法的例子。
+
+<span style="font-size: 28px; color: rgb(51, 51, 51);">List</span>
+
+* * *
+
+<span style="font-size: 13px; color: rgb(199, 37, 78);">List</span><span style="font-size: 15px; color: rgb(51, 51, 51);"> 方法接收资源名和零个或多个其它参数做为输入，返回符合输入的资源列表。它也通常被用来搜索资源。</span>
+
+<span style="font-size: 13px; color: rgb(199, 37, 78);">List</span><span style="font-size: 15px; color: rgb(51, 51, 51);"> 适合取得没有缓存且大小有限的来自单个集合的数据。对于更广泛的情况，</span><span style="font-size: 15px; color: rgb(51, 51, 51);">应该（should）</span><span style="font-size: 15px; color: rgb(51, 51, 51);"> 使用</span>[<span style="font-size: 15px; color: rgb(0, 154, 97);">自定义方法</span>](http://tailnode.tk/2017/03/google-api-design-guide/custom-methods/)<span style="font-size: 15px; color: rgb(51, 51, 51);">。</span>
+
+<span style="font-size: 15px; color: rgb(51, 51, 51);">应该使用自定义的 </span><span style="font-size: 13px; color: rgb(199, 37, 78);">BatchGet</span><span style="font-size: 15px; color: rgb(51, 51, 51);"> 方法来实现批量获取（例如接收多个资源 ID然后返回对应的资源），而不是使用 </span><span style="font-size: 13px; color: rgb(199, 37, 78);">List</span><span style="font-size: 15px; color: rgb(51, 51, 51);">。但如果已存在能够提供同样功能的 </span><span style="font-size: 13px; color: rgb(199, 37, 78);">List</span><span style="font-size: 15px; color: rgb(51, 51, 51);"> 方法，你 </span><span style="font-size: 15px; color: rgb(51, 51, 51);">可以（may）</span><span style="font-size: 15px; color: rgb(51, 51, 51);"> 为此目的重用 </span><span style="font-size: 13px; color: rgb(199, 37, 78);">List</span><span style="font-size: 15px; color: rgb(51, 51, 51);"> 方法。如果你在使用自定义的 </span><span style="font-size: 13px; color: rgb(199, 37, 78);">BatchGet</span><span style="font-size: 15px; color: rgb(51, 51, 51);">方法，</span><span style="font-size: 15px; color: rgb(51, 51, 51);">应该（should）</span><span style="font-size: 15px; color: rgb(51, 51, 51);"> 将它映射成 </span><span style="font-size: 13px; color: rgb(199, 37, 78);">HTTP GET</span><span style="font-size: 15px; color: rgb(51, 51, 51);">。</span>
+
+<span style="font-size: 15px; color: rgb(51, 51, 51);">适用的常见模式：</span>[<span style="font-size: 15px; color: rgb(0, 154, 97);">分页</span>](https://cloud.google.com/apis/design/design_patterns#list_pagination)<span style="font-size: 15px; color: rgb(51, 51, 51);">、</span>[<span style="font-size: 15px; color: rgb(0, 154, 97);">结果排序</span>](https://cloud.google.com/apis/design/design_patterns#sorting_order)
+
+<span style="font-size: 15px; color: rgb(51, 51, 51);">适用的命名约定：</span>[<span style="font-size: 15px; color: rgb(0, 154, 97);">过滤字段</span>](http://tailnode.tk/2017/04/google-api-design-guide/naming-conventions/#list_filter_field)<span style="font-size: 15px; color: rgb(51, 51, 51);">、</span>[<span style="font-size: 15px; color: rgb(0, 154, 97);">结果字段</span>](http://tailnode.tk/2017/04/google-api-design-guide/naming-conventions/#list_response)
+
+<span style="font-size: 15px; color: rgb(51, 51, 51);">HTTP 映射：</span>
+
+*   List<span style="font-size: 15px; color: rgb(51, 51, 51);"> 方法 </span><span style="font-size: 15px; color: rgb(51, 51, 51);">必须（must）</span><span style="font-size: 15px; color: rgb(51, 51, 51);"> 使用 HTTP </span>GET<span style="font-size: 15px; color: rgb(51, 51, 51);"> 动词。</span>
+*   应该（should） 把要列出集合的资源名字放在 URL path 参数中。如果集合名映射到 URL path 中，URL 模版的最后一段（[<span style="color: rgb(0, 154, 97);">集合 ID</span>](http://tailnode.tk/2017/03/google-api-design-guide/resource-names/#collectionid)） 必须（must） 是常量。
+*   所有其他的请求信息字段 必须（shall） 映射到 URL 的 query 参数中。
+*   没有请求体，API 配置中一定不能（must not） 定义 <span style="font-size: 13px; color: rgb(199, 37, 78);">body</span>。
+*   响应体 应该（should） 包含资源列表和可选的元数据。
+
+<span style="font-size: 13px; color: rgb(153, 153, 136);">// 列出指定书架上的所有图书</span><span style="font-size: 13px; color: rgb(51, 51, 51);">rpc</span> <span style="font-size: 13px; color: rgb(51, 51, 51);">ListBooks(ListBooksRequest)</span> <span style="font-size: 13px; color: rgb(51, 51, 51);">returns</span> <span style="font-size: 13px; color: rgb(51, 51, 51);">(ListBooksResponse) { // List 方法映射为 HTTP GET option (google.api.http) = { // `parent` 获取父资源名，例如 "shelves/shelf1" get: "/v1/{parent=shelves/*}/books" };}</span><span style="font-size: 13px; color: rgb(51, 51, 51);">message</span> <span style="font-size: 13px; color: rgb(51, 51, 51);"></span> <span style="font-size: 13px; color: rgb(68, 85, 136);">ListBooksRequest</span> <span style="font-size: 13px; color: rgb(51, 51, 51);">{</span> <span style="font-size: 13px; color: rgb(153, 153, 136);">// 父资源名称，例如 "shelves/shelf1".</span> <span style="font-size: 13px; color: rgb(51, 51, 51);"></span> <span style="font-size: 13px; color: rgb(0, 134, 179);">string</span> <span style="font-size: 13px; color: rgb(51, 51, 51);">parent =</span> <span style="font-size: 13px; color: rgb(0, 128, 128);">1</span><span style="font-size: 13px; color: rgb(51, 51, 51);">;</span> <span style="font-size: 13px; color: rgb(153, 153, 136);">// 返回值的最大条数</span> <span style="font-size: 13px; color: rgb(51, 51, 51);"></span> <span style="font-size: 13px; color: rgb(0, 134, 179);">int32</span> <span style="font-size: 13px; color: rgb(51, 51, 51);">page_size =</span> <span style="font-size: 13px; color: rgb(0, 128, 128);">2</span><span style="font-size: 13px; color: rgb(51, 51, 51);">;</span> <span style="font-size: 13px; color: rgb(153, 153, 136);">// 从上一个 List 请求返回的 next_page_token 值（如果存在）</span> <span style="font-size: 13px; color: rgb(51, 51, 51);"></span> <span style="font-size: 13px; color: rgb(0, 134, 179);">string</span> <span style="font-size: 13px; color: rgb(51, 51, 51);">page_token =</span> <span style="font-size: 13px; color: rgb(0, 128, 128);">3</span><span style="font-size: 13px; color: rgb(51, 51, 51);">;}</span><span style="font-size: 13px; color: rgb(51, 51, 51);">message</span> <span style="font-size: 13px; color: rgb(51, 51, 51);"></span> <span style="font-size: 13px; color: rgb(68, 85, 136);">ListBooksResponse</span> <span style="font-size: 13px; color: rgb(51, 51, 51);">{</span> <span style="font-size: 13px; color: rgb(153, 153, 136);">// 字段名应该匹配方法名中的名词 "books"，根据请求中的 page_size 字段，将会返回最大数量的条目</span> <span style="font-size: 13px; color: rgb(51, 51, 51);"></span> <span style="font-size: 13px; color: rgb(51, 51, 51);">repeated</span> <span style="font-size: 13px; color: rgb(51, 51, 51);">Book books =</span> <span style="font-size: 13px; color: rgb(0, 128, 128);">1</span><span style="font-size: 13px; color: rgb(51, 51, 51);">;</span> <span style="font-size: 13px; color: rgb(153, 153, 136);">// 用于取得下一页结果的值，没有时为空</span> <span style="font-size: 13px; color: rgb(51, 51, 51);"></span> <span style="font-size: 13px; color: rgb(0, 134, 179);">string</span> <span style="font-size: 13px; color: rgb(51, 51, 51);">next_page_token =</span> <span style="font-size: 13px; color: rgb(0, 128, 128);">2</span><span style="font-size: 13px; color: rgb(51, 51, 51);">;}</span>
+
+<span style="font-size: 28px; color: rgb(51, 51, 51);">Get</span>
+
+* * *
+
+<span style="font-size: 13px; color: rgb(199, 37, 78);">GET</span><span style="font-size: 15px; color: rgb(51, 51, 51);"> 方法接收资源名，零个或多个参数，返回指定的资源。</span>
+
+<span style="font-size: 15px; color: rgb(51, 51, 51);">HTTP 映射：</span>
+
+*   Get<span style="font-size: 15px; color: rgb(51, 51, 51);"> 方法 </span><span style="font-size: 15px; color: rgb(51, 51, 51);">必须（must）</span><span style="font-size: 15px; color: rgb(51, 51, 51);"> 使用 HTTP </span>GET<span style="font-size: 15px; color: rgb(51, 51, 51);"> 动词。</span>
+*   表示资源名的请求信息字段 应该（should） 映射到 URL path 参数中。
+*   所有其他的请求信息字段 必须（shall） 映射到 URL 的 query 参数中。
+*   没有请求体，API 配置中一定不能（must not） 定义 <span style="font-size: 13px; color: rgb(199, 37, 78);">body</span>。
+*   返回的资源 必须（shall） 填充整个响应体。
+
+<span style="font-size: 13px; color: rgb(153, 153, 136);">// 取得指定的 book</span><span style="font-size: 13px; color: rgb(51, 51, 51);">rpc</span> <span style="font-size: 13px; color: rgb(51, 51, 51);">GetBook(GetBookRequest)</span> <span style="font-size: 13px; color: rgb(51, 51, 51);">returns</span> <span style="font-size: 13px; color: rgb(51, 51, 51);">(Book) { // Get 映射为 HTTP GET。资源名映射到 URL 中。没有请求体 option (google.api.http) = { // 注意 URL 中用于获取资源名的模板变量，例如 "shelves/shelf1/books/book2" get: "/v1/{name=shelves/*/books/*}" };}</span><span style="font-size: 13px; color: rgb(51, 51, 51);">message</span> <span style="font-size: 13px; color: rgb(51, 51, 51);"></span> <span style="font-size: 13px; color: rgb(68, 85, 136);">GetBookRequest</span> <span style="font-size: 13px; color: rgb(51, 51, 51);">{</span> <span style="font-size: 13px; color: rgb(153, 153, 136);">// 此字段包含被请求资源的名字，例如："shelves/shelf1/books/book2"</span> <span style="font-size: 13px; color: rgb(51, 51, 51);"></span> <span style="font-size: 13px; color: rgb(0, 134, 179);">string</span> <span style="font-size: 13px; color: rgb(51, 51, 51);">name =</span> <span style="font-size: 13px; color: rgb(0, 128, 128);">1</span><span style="font-size: 13px; color: rgb(51, 51, 51);">;}</span>
+
+<span style="font-size: 28px; color: rgb(51, 51, 51);">Create</span>
+
+* * *
+
+<span style="font-size: 13px; color: rgb(199, 37, 78);">Create</span><span style="font-size: 15px; color: rgb(51, 51, 51);"> 方法接收一个集合名、零个或多个参数，在指定集合中创建一个新的资源并将其返回。</span>
+
+<span style="font-size: 15px; color: rgb(51, 51, 51);">如果 API 支持创建资源，它 </span><span style="font-size: 15px; color: rgb(51, 51, 51);">应该（should）</span><span style="font-size: 15px; color: rgb(51, 51, 51);"> 在所有可被创建的资源上具有 </span><span style="font-size: 13px; color: rgb(199, 37, 78);">Create</span><span style="font-size: 15px; color: rgb(51, 51, 51);"> 方法 。</span>
+
+<span style="font-size: 15px; color: rgb(51, 51, 51);">HTTP 映射：</span>
+
+*   Create<span style="font-size: 15px; color: rgb(51, 51, 51);"> 方法 </span><span style="font-size: 15px; color: rgb(51, 51, 51);">必须（must）</span><span style="font-size: 15px; color: rgb(51, 51, 51);"> 使用 HTTP </span>POST<span style="font-size: 15px; color: rgb(51, 51, 51);"> 动词。</span>
+*   请求消息中 应该（should） 含有名为 <span style="font-size: 13px; color: rgb(199, 37, 78);">parent</span> 的字段来接收新建资源的父资源名。
+*   所有其他的请求信息字段 必须（shall） 映射到 URL 的 query 参数中。
+*   请求 可以（may） 包含名为 <span style="font-size: 13px; color: rgb(199, 37, 78);"><resource>_id</span> 的字段名来允许调用者选择一个客户端分配的 ID。这个字段 必须（must） 映射到 URL query 参数中。
+*   包含资源的请求信息字段 应该（should） 映射到请求体中。如果 <span style="font-size: 13px; color: rgb(199, 37, 78);">Create</span> 方法使用了 HTTP 配置中的 <span style="font-size: 13px; color: rgb(199, 37, 78);">body</span> 字段，那么 必须（must） 使用 <span style="font-size: 13px; color: rgb(199, 37, 78);">body: "<resource_field>"</span> 这种格式。
+*   返回的资源 必须（shall） 填充到整个响应体。
+
+<span style="font-size: 15px; color: rgb(51, 51, 51);">如果 </span><span style="font-size: 13px; color: rgb(199, 37, 78);">Create</span><span style="font-size: 15px; color: rgb(51, 51, 51);"> 方法支持客户端指定资源名，当资源名已存在时请求 </span><span style="font-size: 15px; color: rgb(51, 51, 51);">应该（should）</span><span style="font-size: 15px; color: rgb(51, 51, 51);"> 失败（</span><span style="font-size: 15px; color: rgb(51, 51, 51);">推荐（recommended）</span><span style="font-size: 15px; color: rgb(51, 51, 51);"> 使用 </span><span style="font-size: 13px; color: rgb(199, 37, 78);">google.rpc.Code.ALREADY_EXISTS</span><span style="font-size: 15px; color: rgb(51, 51, 51);">）或者服务端分配另外的名字，并且文档中应该明确指出创建的资源名可能会与传入的名字不同。</span>
+
+<span style="font-size: 13px; color: rgb(51, 51, 51);">rpc</span> <span style="font-size: 13px; color: rgb(51, 51, 51);">CreateBook(CreateBookRequest)</span> <span style="font-size: 13px; color: rgb(51, 51, 51);">returns</span> <span style="font-size: 13px; color: rgb(51, 51, 51);">(Book) { // Create 映射为 HTTP POST，URL path 做为集合名称 // HTTP 请求体中包含资源 option (google.api.http) = { // 通过 `parent` 获取父资源名，例如 "shelves/1" post: "/v1/{parent=shelves/*}/books" body: "book" };}</span><span style="font-size: 13px; color: rgb(51, 51, 51);">message</span> <span style="font-size: 13px; color: rgb(51, 51, 51);"></span> <span style="font-size: 13px; color: rgb(68, 85, 136);">CreateBookRequest</span> <span style="font-size: 13px; color: rgb(51, 51, 51);">{</span> <span style="font-size: 13px; color: rgb(153, 153, 136);">// 将被创建的 book 的父资源名</span> <span style="font-size: 13px; color: rgb(51, 51, 51);"></span> <span style="font-size: 13px; color: rgb(0, 134, 179);">string</span> <span style="font-size: 13px; color: rgb(51, 51, 51);">parent =</span> <span style="font-size: 13px; color: rgb(0, 128, 128);">1</span><span style="font-size: 13px; color: rgb(51, 51, 51);">;</span> <span style="font-size: 13px; color: rgb(153, 153, 136);">// book 使用的 ID</span> <span style="font-size: 13px; color: rgb(51, 51, 51);"></span> <span style="font-size: 13px; color: rgb(0, 134, 179);">string</span> <span style="font-size: 13px; color: rgb(51, 51, 51);">book_id =</span> <span style="font-size: 13px; color: rgb(0, 128, 128);">3</span><span style="font-size: 13px; color: rgb(51, 51, 51);">;</span> <span style="font-size: 13px; color: rgb(153, 153, 136);">// 资源 book 将被创建，字段名应该与方法名中的名词相匹配</span> <span style="font-size: 13px; color: rgb(51, 51, 51);">Book book =</span> <span style="font-size: 13px; color: rgb(0, 128, 128);">2</span><span style="font-size: 13px; color: rgb(51, 51, 51);">;}</span><span style="font-size: 13px; color: rgb(51, 51, 51);">rpc</span> <span style="font-size: 13px; color: rgb(51, 51, 51);">CreateShelf(CreateShelfRequest)</span> <span style="font-size: 13px; color: rgb(51, 51, 51);">returns</span> <span style="font-size: 13px; color: rgb(51, 51, 51);">(Shelf) { option (google.api.http) = { post: "/v1/shelves" body: "shelf" };}</span><span style="font-size: 13px; color: rgb(51, 51, 51);">message</span> <span style="font-size: 13px; color: rgb(51, 51, 51);"></span> <span style="font-size: 13px; color: rgb(68, 85, 136);">CreateShelfRequest</span> <span style="font-size: 13px; color: rgb(51, 51, 51);">{ Shelf shelf =</span> <span style="font-size: 13px; color: rgb(0, 128, 128);">1</span><span style="font-size: 13px; color: rgb(51, 51, 51);">;}</span>
+
+<span style="font-size: 28px; color: rgb(51, 51, 51);">Update</span>
+
+* * *
+
+<span style="font-size: 13px; color: rgb(199, 37, 78);">Update</span><span style="font-size: 15px; color: rgb(51, 51, 51);"> 方法接收包含资源和零个或多个参数的请求，更新指定的资源和属性并返回更新后的资源。</span>
+
+<span style="font-size: 15px; color: rgb(51, 51, 51);">可修改的资源属性 </span><span style="font-size: 15px; color: rgb(51, 51, 51);">应该（should）</span><span style="font-size: 15px; color: rgb(51, 51, 51);"> 使用 </span><span style="font-size: 13px; color: rgb(199, 37, 78);">Update</span><span style="font-size: 15px; color: rgb(51, 51, 51);"> 方法来更新，除非属性中包含</span>[<span style="font-size: 15px; color: rgb(0, 154, 97);">资源名或父资源</span>](http://tailnode.tk/2017/03/google-api-design-guide/resource-names/)<span style="font-size: 15px; color: rgb(51, 51, 51);">。任何</span><span style="font-size: 15px; color: rgb(51, 51, 51);">重命名</span><span style="font-size: 15px; color: rgb(51, 51, 51);">或</span><span style="font-size: 15px; color: rgb(51, 51, 51);">移动</span><span style="font-size: 15px; color: rgb(51, 51, 51);">资源的操作 </span><span style="font-size: 15px; color: rgb(51, 51, 51);">一定不要（must not）</span><span style="font-size: 15px; color: rgb(51, 51, 51);"> 通过 </span><span style="font-size: 13px; color: rgb(199, 37, 78);">Update</span><span style="font-size: 15px; color: rgb(51, 51, 51);"> 执行，</span><span style="font-size: 15px; color: rgb(51, 51, 51);">必须（shall）</span><span style="font-size: 15px; color: rgb(51, 51, 51);"> 通过自定义方法处理。</span>
+
+<span style="font-size: 15px; color: rgb(51, 51, 51);">HTTP 映射：</span>
+
+*   标准的 <span style="font-size: 13px; color: rgb(199, 37, 78);">Update</span> 方法 应该（should） 支持资源的部分更新，使用带有名为 <span style="font-size: 13px; color: rgb(199, 37, 78);">update_mask</span> 的 <span style="font-size: 13px; color: rgb(199, 37, 78);">FieldMask</span> 字段的 HTTP 动词 <span style="font-size: 13px; color: rgb(199, 37, 78);">PATCH</span> 来执行操作。
+*   应该（should） 使用[<span style="color: rgb(0, 154, 97);">自定义方法</span>](http://tailnode.tk/2017/03/google-api-design-guide/custom-methods/)来实现更高级的 <span style="font-size: 13px; color: rgb(199, 37, 78);">Update</span> 方法，例如追加重复的字段。
+*   如果 <span style="font-size: 13px; color: rgb(199, 37, 78);">Update</span> 方法仅支持资源的完整更新，则 必须（must） 使用 HTTP 动词 <span style="font-size: 13px; color: rgb(199, 37, 78);">PUT</span>实现。然而并不鼓励这样做，因为当添加新的资源字段时会有后向兼容的问题。
+*   被修改资源的名称字段 必须（must） 映射到 URL path 参数中。此字段也 可以（may） 加在资源信息中。
+*   包含资源的请求信息 必须（must） 映射到请求体中。
+*   所有其他请求信息 必须（must） 映射到 URL query 参数中。
+*   返回响应中的资源信息 必须（must） 是被修改的资源。
+
+<span style="font-size: 15px; color: rgb(51, 51, 51);">如果 API 接收客户端分配的资源名，那么服务端 </span><span style="font-size: 15px; color: rgb(51, 51, 51);">可以（may）</span><span style="font-size: 15px; color: rgb(51, 51, 51);"> 允许客户端指定一个不存在的资源名来创建新的资源。否则，</span><span style="font-size: 13px; color: rgb(199, 37, 78);">Update</span><span style="font-size: 15px; color: rgb(51, 51, 51);"> 方法</span><span style="font-size: 15px; color: rgb(51, 51, 51);">应该（should）</span><span style="font-size: 15px; color: rgb(51, 51, 51);"> 因为不存在的资源名而失败。当资源名不存在是唯一错误时，</span><span style="font-size: 15px; color: rgb(51, 51, 51);">应该（should）</span><span style="font-size: 15px; color: rgb(51, 51, 51);"> 使用错误码 </span><span style="font-size: 13px; color: rgb(199, 37, 78);">NOT_FOUND</span><span style="font-size: 15px; color: rgb(51, 51, 51);">。</span>
+
+<span style="font-size: 15px; color: rgb(51, 51, 51);">即使 API 的 </span><span style="font-size: 13px; color: rgb(199, 37, 78);">Update</span><span style="font-size: 15px; color: rgb(51, 51, 51);"> 方法能够新建资源，它也 </span><span style="font-size: 15px; color: rgb(51, 51, 51);">应该（should）</span><span style="font-size: 15px; color: rgb(51, 51, 51);"> 提供 </span><span style="font-size: 13px; color: rgb(199, 37, 78);">Create</span><span style="font-size: 15px; color: rgb(51, 51, 51);"> 方法。这是因为只有 </span><span style="font-size: 13px; color: rgb(199, 37, 78);">Update</span><span style="font-size: 15px; color: rgb(51, 51, 51);"> 方法能够新建资源会让人迷惑。</span>
+
+<span style="font-size: 13px; color: rgb(51, 51, 51);">rpc UpdateBook(UpdateBookRequest) returns (Book) {</span> <span style="font-size: 13px; color: rgb(0, 153, 38);">//</span> <span style="font-size: 13px; color: rgb(51, 51, 51);">Update 映射为 HTTP PATCH。资源名映射到 URL path 参数中</span> <span style="font-size: 13px; color: rgb(0, 153, 38);">//</span> <span style="font-size: 13px; color: rgb(51, 51, 51);">资源包含在 HTTP 请求体中 option (google.api.http) = {</span> <span style="font-size: 13px; color: rgb(0, 153, 38);">//</span> <span style="font-size: 13px; color: rgb(51, 51, 51);">注意用于获取待更新 book 的资源名的 URL 模版变量 patch:</span> <span style="font-size: 13px; color: rgb(221, 17, 68);">"/v1/{book.name=shelves/*/books/*}"</span> <span style="font-size: 13px; color: rgb(51, 51, 51);">body:</span> <span style="font-size: 13px; color: rgb(221, 17, 68);">"book"</span> <span style="font-size: 13px; color: rgb(51, 51, 51);">};}message UpdateBookRequest {</span> <span style="font-size: 13px; color: rgb(0, 153, 38);">//</span> <span style="font-size: 13px; color: rgb(51, 51, 51);">替换服务端上的 book 资源 Book book =</span> <span style="font-size: 13px; color: rgb(0, 128, 128);">1</span><span style="font-size: 13px; color: rgb(51, 51, 51);">;</span> <span style="font-size: 13px; color: rgb(0, 153, 38);">//</span> <span style="font-size: 13px; color: rgb(51, 51, 51);">用于资源更新的掩码</span> <span style="font-size: 13px; color: rgb(0, 153, 38);">//</span> <span style="font-size: 13px; color: rgb(51, 51, 51);">`FieldMask` 的定义请参考 https:</span><span style="font-size: 13px; color: rgb(0, 153, 38);">//</span><span style="font-size: 13px; color: rgb(51, 51, 51);">developers.google.com</span><span style="font-size: 13px; color: rgb(0, 153, 38);">/protocol-buffers/</span><span style="font-size: 13px; color: rgb(51, 51, 51);">docs</span><span style="font-size: 13px; color: rgb(0, 153, 38);">/reference/g</span><span style="font-size: 13px; color: rgb(51, 51, 51);">oogle.protobuf</span><span style="font-size: 13px; color: rgb(153, 153, 136);">#fieldmask</span> <span style="font-size: 13px; color: rgb(51, 51, 51);">FieldMask update_mask =</span> <span style="font-size: 13px; color: rgb(0, 128, 128);">2</span><span style="font-size: 13px; color: rgb(51, 51, 51);">;}</span>
+
+<span style="font-size: 28px; color: rgb(51, 51, 51);">Delete</span>
+
+* * *
+
+<span style="font-size: 13px; color: rgb(199, 37, 78);">Delete</span><span style="font-size: 15px; color: rgb(51, 51, 51);"> 方法接收资源名和零个或多个参数，然后删除或准备删除指定资源。</span><span style="font-size: 13px; color: rgb(199, 37, 78);">Delete</span><span style="font-size: 15px; color: rgb(51, 51, 51);"> 方法 </span><span style="font-size: 15px; color: rgb(51, 51, 51);">应该（should）</span><span style="font-size: 15px; color: rgb(51, 51, 51);"> 返回 </span><span style="font-size: 13px; color: rgb(199, 37, 78);">google.protobuf.Empty</span><span style="font-size: 15px; color: rgb(51, 51, 51);">。</span>
+
+<span style="font-size: 15px; color: rgb(51, 51, 51);">注意，API </span><span style="font-size: 15px; color: rgb(51, 51, 51);">不应该（should not）</span><span style="font-size: 15px; color: rgb(51, 51, 51);"> 依赖 </span><span style="font-size: 13px; color: rgb(199, 37, 78);">Delete</span><span style="font-size: 15px; color: rgb(51, 51, 51);"> 方法返回的任何信息，因为它不能重复调用。</span>
+
+<span style="font-size: 15px; color: rgb(51, 51, 51);">HTTP 映射：</span>
+
+*   Delete<span style="font-size: 15px; color: rgb(51, 51, 51);"> 方法 </span><span style="font-size: 15px; color: rgb(51, 51, 51);">必须（must）</span><span style="font-size: 15px; color: rgb(51, 51, 51);"> 使用 HTTP </span>DELETE<span style="font-size: 15px; color: rgb(51, 51, 51);"> 动词</span>
+*   表示资源名的请求信息字段 应该（should） 映射到 URL path 参数中
+*   所有其他的请求信息字段 必须（shall） 映射到 URL 的 query 参数中
+*   没有请求体，API 配置 一定不要（must not） 定义 <span style="font-size: 13px; color: rgb(199, 37, 78);">body</span>
+*   Delete<span style="font-size: 15px; color: rgb(51, 51, 51);"> 方法直接删除资源时，</span><span style="font-size: 15px; color: rgb(51, 51, 51);">应该（should）</span><span style="font-size: 15px; color: rgb(51, 51, 51);"> 返回空的响应</span>
+*   Delete<span style="font-size: 15px; color: rgb(51, 51, 51);"> 方法初始化一个长时间的操作时，</span><span style="font-size: 15px; color: rgb(51, 51, 51);">应该（should）</span><span style="font-size: 15px; color: rgb(51, 51, 51);"> 返回这个操作</span>
+*   Delete<span style="font-size: 15px; color: rgb(51, 51, 51);"> 方法将资源标记为被删除时，</span><span style="font-size: 15px; color: rgb(51, 51, 51);">应该（should）</span><span style="font-size: 15px; color: rgb(51, 51, 51);"> 返回更新后的资源</span>
+
+<span style="font-size: 13px; color: rgb(199, 37, 78);">Delete</span><span style="font-size: 15px; color: rgb(51, 51, 51);"> 方法的调用在效果上应该是幂等的，但并不需要有相同的返回值。任意次 </span><span style="font-size: 13px; color: rgb(199, 37, 78);">Delete</span><span style="font-size: 15px; color: rgb(51, 51, 51);"> 请求的结果 </span><span style="font-size: 15px; color: rgb(51, 51, 51);">应该（should）</span><span style="font-size: 15px; color: rgb(51, 51, 51);"> 是资源被删除，但只有第一次请求应该返回正确，后续的请求应该返回 </span><span style="font-size: 13px; color: rgb(199, 37, 78);">google.rpc.Code.NOT_FOUND</span><span style="font-size: 15px; color: rgb(51, 51, 51);">。</span>
+
+<span style="font-size: 13px; color: rgb(51, 51, 51);">rpc</span> <span style="font-size: 13px; color: rgb(153, 0, 0);">DeleteBook</span><span style="font-size: 13px; color: rgb(51, 51, 51);">(DeleteBookRequest)</span> <span style="font-size: 13px; color: rgb(153, 0, 0);">returns</span> <span style="font-size: 13px; color: rgb(51, 51, 51);">(google.protobuf.Empty) {</span> <span style="font-size: 13px; color: rgb(153, 153, 136);">// Delete 映射为 HTTP DELETE。资源名映射到 URL path 参数中</span> <span style="font-size: 13px; color: rgb(51, 51, 51);"></span> <span style="font-size: 13px; color: rgb(153, 153, 136);">// 没有请求体</span> <span style="font-size: 13px; color: rgb(51, 51, 51);">option (google.api.http) = {</span> <span style="font-size: 13px; color: rgb(153, 153, 136);">// 注意 URL 模板变量获取待删除资源的名称，例如 "shelves/shelf1/books/book2"</span> <span style="font-size: 13px; color: rgb(51, 51, 51);"></span> <span style="font-size: 13px; color: rgb(51, 51, 51);">delete</span><span style="font-size: 13px; color: rgb(51, 51, 51);">:</span> <span style="font-size: 13px; color: rgb(221, 17, 68);">"/v1/{name=shelves/*/books/*}"</span> <span style="font-size: 13px; color: rgb(51, 51, 51);">};}message DeleteBookRequest {</span> <span style="font-size: 13px; color: rgb(153, 153, 136);">// 待删除的资源名称，例如 "shelves/shelf1/books/book2"</span> <span style="font-size: 13px; color: rgb(51, 51, 51);"></span> <span style="font-size: 13px; color: rgb(0, 134, 179);">string</span> <span style="font-size: 13px; color: rgb(51, 51, 51);">name =</span> <span style="font-size: 13px; color: rgb(0, 128, 128);">1</span><span style="font-size: 13px; color: rgb(51, 51, 51);">;}</span>
+
+
+<h1 id="5-Custom-Methods"><code>自定义方法</code></h1>
+
+[<span style="font-size: 15px; color: rgb(0, 56, 132);">自定义方法</span>](https://segmentfault.com/a/1190000008943186) <span style="font-size: 15px; color: rgb(51, 51, 51);">此篇文章讨论如何在 API 设计中使用自定义方法。</span>
+
+<span style="font-size: 15px; color: rgb(51, 51, 51);">自定义方法指五个标准方法之外的 API 方法。</span><span style="font-size: 15px; color: rgb(51, 51, 51);">应该（should）</span><span style="font-size: 15px; color: rgb(51, 51, 51);"> 只有当标准方法不能完成需要的功能时才使用自定义方法。一般情况下，API 设计者 </span><span style="font-size: 15px; color: rgb(51, 51, 51);">应该（should）</span><span style="font-size: 15px; color: rgb(51, 51, 51);"> 在可行的情况下选择标准方法。标准方法有更简洁和明确定义的语义并且被大多数开发者熟知，所以它们更易于使用并且不易出错。另一个优势是 API 平台对标准方法的支持更好，比如计费、错误处理、日志和监控。</span>
+
+<span style="font-size: 15px; color: rgb(51, 51, 51);">自定义方法可以被关联到资源、集合或服务。它 </span><span style="font-size: 15px; color: rgb(51, 51, 51);">可以（may）</span><span style="font-size: 15px; color: rgb(51, 51, 51);"> 接收任意请求并返回任意响应，并且也可以支持流式请求与响应。</span>
+
+<span style="font-size: 28px; color: rgb(51, 51, 51);">HTTP 映射</span>
+
+* * *
+
+<span style="font-size: 15px; color: rgb(51, 51, 51);">自定义方法 </span><span style="font-size: 15px; color: rgb(51, 51, 51);">应该（should）</span><span style="font-size: 15px; color: rgb(51, 51, 51);"> 使用如下的通用映射方法：</span>
+
+[<span style="font-size: 13px; color: rgb(0, 56, 132);">https://service.name/v1/some/resource/name:customVerb</span>](https://service.name/v1/some/resource/name:customVerb)
+
+<span style="font-size: 15px; color: rgb(51, 51, 51);">使用 </span><span style="font-size: 13px; color: rgb(199, 37, 78);">:</span><span style="font-size: 15px; color: rgb(51, 51, 51);"> 代替 </span><span style="font-size: 13px; color: rgb(199, 37, 78);">/</span><span style="font-size: 15px; color: rgb(51, 51, 51);"> 来分隔资源名与自定义动词是为了支持任意 path 参数，例如，取消删除（undelete）文件能映射为 </span><span style="font-size: 13px; color: rgb(199, 37, 78);">POST /files/a/long/file/name:undelete</span><span style="font-size: 15px; color: rgb(51, 51, 51);">。</span>
+
+<span style="font-size: 15px; color: rgb(51, 51, 51);">选择 HTTP 映射时 </span><span style="font-size: 15px; color: rgb(51, 51, 51);">必须（shall）</span><span style="font-size: 15px; color: rgb(51, 51, 51);"> 遵守如下指南：</span>
+
+*   自定义方法 应该（should） 使用 HTTP  <span style="font-size: 13px; color: rgb(199, 37, 78);">POST</span>  动词，因为 POST 有更加灵活的语义
+*   自定义方法 不应该（should not） 使用 HTTP <span style="font-size: 13px; color: rgb(199, 37, 78);">PATCH</span>，但 可以（may） 使用其它 HTTP 动词。这种情况下，方法必须（must） 遵循该动词的标准 [<span style="color: rgb(0, 154, 97);">HTTP 语义</span>](https://tools.ietf.org/html/rfc2616#section-9)
+*   注意，使用 HTTP <span style="font-size: 13px; color: rgb(199, 37, 78);">GET</span> 的自定义方法 必须（must） 是幂等的并且不能有副作用。例如，在资源上实现特殊查询的自定义方法应该使用 HTTP <span style="font-size: 13px; color: rgb(199, 37, 78);">GET</span>。
+*   自定义方法中待操作的资源或集合名 应该（should） 映射到 URL path 参数
+*   URL path 必须（must） 以冒号加上 自定义动词 做为后缀
+*   如果自定义方法使用的 HTTP 动词允许 HTTP 请求体（<span style="font-size: 13px; color: rgb(199, 37, 78);">POST</span>、<span style="font-size: 13px; color: rgb(199, 37, 78);">PUT</span>、<span style="font-size: 13px; color: rgb(199, 37, 78);">PATCH</span> 或自定义的 HTTP 动词），这些自定义方法的 HTTP 配置 必须（must） 使用 <span style="font-size: 13px; color: rgb(199, 37, 78);">body: "*"</span> 并且所有剩余的请求信息 必须（shall） 映射到 HTTP 请求体中
+*   如果自定义方法使用的 HTTP 动词不允许 HTTP 请求体（<span style="font-size: 13px; color: rgb(199, 37, 78);">GET</span>、<span style="font-size: 13px; color: rgb(199, 37, 78);">DELETE</span>），这些方法的 HTTP 配置 一定不要（must not） 使用 <span style="font-size: 13px; color: rgb(199, 37, 78);">body</span>，所有剩余的请求信息 必须（shall） 映射到 HTTP query 参数中
+
+<span style="font-size: 15px; color: rgb(51, 51, 51);">警告</span><span style="font-size: 15px; color: rgb(51, 51, 51);">：如果服务实现多个 API，</span><span style="font-size: 15px; color: rgb(51, 51, 51);">必须（must）</span><span style="font-size: 15px; color: rgb(51, 51, 51);"> 小心地创建服务配置以避免 API 间的自定义动词冲突。</span>
+
+// 服务级别的自定义方法
+
+rpc Watch(WatchRequest) returns (WatchResponse) {
+
+// 自定义方法映射到 HTTP POST，所有参数放到请求体中
+
+option (google.api.http) = {
+
+post: "/v1:watch"
+
+body: "*"
+
+};
+
+}
+
+// 集合级别的自定义方法
+
+rpc ClearEvents(ClearEventsRequest) returns (ClearEventsResponse) {
+
+option (google.api.http) = {
+
+post: "/v3/events:clear"
+
+body: "*"
+
+};
+
+}
+
+// 资源级别的自定义方法
+
+rpc CancelEvent(CancelEventRequest) returns (CancelEventResponse) {
+
+option (google.api.http) = {
+
+post: "/v3/{name=events/*}:cancel"
+
+body: "*"
+
+};
+
+}
+
+// 用于批量 get 的自定义方法
+
+rpc BatchGetEvents(BatchGetEventsRequest) returns (BatchGetEventsResponse) {
+
+// 批量 get 方法映射到 HTTP GET
+
+option (google.api.http) = {
+
+get: "/v3/events:batchGet"
+
+};
+
+}
+
+<span style="font-size: 28px; color: rgb(51, 51, 51);">用例</span>
+
+* * *
+
+<span style="font-size: 15px; color: rgb(51, 51, 51);">一些可选择自定义方法的其他情况：</span>
+
+*   重启虚拟机 设计的备选方案可以是“在重启资源集合中创建一个重启资源”（过于复杂）或者“虚拟机具有可变的状态，客户端能够将其从运行中改变为重启中”（会引入更多问题，比如是否有其他状态间的转变）。此外，重启是一个被熟知的概念，能够很好地转换为满足开发者需求的自定义方法
+*   发送邮件 创建邮件信息并不一定要将它发送出去（草稿）。相对于备选方案（将消息移动到 Outbox 集合），自定义方法的优点是可以被 API 用户更多地发现并且更直接地理解它的概念
+*   员工晋级 如果使用标准的 <span style="font-size: 13px; color: rgb(199, 37, 78);">update</span> 来实现，客户端必须重复进行管理流程的策略来保证正确的晋级
+
+<span style="font-size: 15px; color: rgb(51, 51, 51);">一些标准方法比自定义方法更好的例子：</span>
+
+*   使用不同的参数查询资源（使用标准的 <span style="font-size: 13px; color: rgb(199, 37, 78);">list</span> 方法和过滤）
+*   简单的资源修改（使用带有字段掩码的标准 <span style="font-size: 13px; color: rgb(199, 37, 78);">update</span> 方法）
+*   撤消通知（使用标准的 <span style="font-size: 13px; color: rgb(199, 37, 78);">delete</span> 方法）
+
+<span style="font-size: 28px; color: rgb(51, 51, 51);">通用自定义方法</span>
+
+* * *
+
+<span style="font-size: 15px; color: rgb(51, 51, 51);">常用的自定义方法名称列表如下。 API 设计者在引入自已的名称之前应该考虑这些名称，以便于跨 API 的一致性</span>
+
+| <span style="color: rgb(0, 0, 0);">方法名</span> | <span style="color: rgb(0, 0, 0);">自定义动词</span> | <span style="color: rgb(0, 0, 0);">HTTP 动词</span> | <span style="color: rgb(0, 0, 0);">备注</span> |
+| --- | --- | --- | --- |
+| <span style="color: rgb(0, 0, 0);">Canecl</span> | <span style="color: rgb(0, 0, 0);">:cancel</span> | <span style="color: rgb(0, 0, 0);">POST</span> | <span style="color: rgb(0, 0, 0);">取消未完成的操作（构建、计算等）</span> |
+| <span style="color: rgb(0, 0, 0);">BatchGet<复数名词></span> | <span style="color: rgb(0, 0, 0);">:batchGet</span> | <span style="color: rgb(0, 0, 0);">POST</span> | <span style="color: rgb(0, 0, 0);">批量取得多个资源（详情请查看 List 的描述）</span> |
+| <span style="color: rgb(0, 0, 0);">Move</span> | <span style="color: rgb(0, 0, 0);">:move</span> | <span style="color: rgb(0, 0, 0);">GET</span> | <span style="color: rgb(0, 0, 0);">将资源从一个父资源移动到另一个中</span> |
+| <span style="color: rgb(0, 0, 0);">Search</span> | <span style="color: rgb(0, 0, 0);">:search</span> | <span style="color: rgb(0, 0, 0);">GET</span> | <span style="color: rgb(0, 0, 0);">用于获取不符合 List 语义的数据</span> |
+| <span style="color: rgb(0, 0, 0);">Undelete</span> | <span style="color: rgb(0, 0, 0);">:undelete</span> | <span style="color: rgb(0, 0, 0);">POST</span> | <span style="color: rgb(0, 0, 0);">恢复以前删除的资源，推荐的保留期为30天</span> |
 

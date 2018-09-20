@@ -3,7 +3,8 @@ Google API Documents Chinese Documents
 
 ## 目录
 1. [简介](#1-Introduction)
-1. [面向资源的设计](#2-Resource-Oriented-Design)
+2. [面向资源的设计](#2-Resource-Oriented-Design)
+3. [资源名称](#3-Resource-Name)
 
 
 
@@ -142,3 +143,93 @@ _<span style="font-size: 15px; color: rgb(51, 51, 51);">pubsub.googleapis.com �
 *   _订阅资源集合: <span style="font-size: 13px; color: rgb(199, 37, 78);">projects/</span>_/subscriptions/*
 
 <span style="font-size: 15px; color: rgb(51, 51, 51);">注意：</span><span style="font-size: 15px; color: rgb(51, 51, 51);"> 其它Pub/Sub API 实现可能采用不同的资源名称范式</span>
+
+<h3 id="3-Resource-Name"><code>资源名称</code></h3>
+
+<span style="font-size: 15px; color: rgb(51, 51, 51);">在面向资源的 API 中，</span><span style="font-size: 15px; color: rgb(51, 51, 51);">资源</span><span style="font-size: 15px; color: rgb(51, 51, 51);">是命名实体，</span><span style="font-size: 15px; color: rgb(51, 51, 51);">资源名称</span><span style="font-size: 15px; color: rgb(51, 51, 51);">是其标识符。每个资源 </span><span style="font-size: 15px; color: rgb(51, 51, 51);">必须（ MUST ）</span><span style="font-size: 15px; color: rgb(51, 51, 51);"> 有唯一的资源名称。资源名称由资源自己的 ID，任一父资源的 ID 及其 API 服务名称组成。下面我们将看一看资源 ID 和资源名是如何构成的。</span>
+
+<span style="font-size: 15px; color: rgb(51, 51, 51);">gRPC API 应该为资源名使用无协议（scheme-less）的 </span>[<span style="font-size: 15px; color: rgb(0, 154, 97);">URI</span>](http://tools.ietf.org/html/rfc3986)<span style="font-size: 15px; color: rgb(51, 51, 51);">。它们通常遵循 REST URL 惯例并且其行为与网络文件路径非常相似。它们能非常容易地映射到 REST API：详细内容查看</span>[<span style="font-size: 15px; color: rgb(0, 154, 97);">标准方法</span>](http://tailnode.tk/2017/03/google-api-design-guide/standard-methods/)<span style="font-size: 15px; color: rgb(51, 51, 51);">。</span>
+
+<span style="font-size: 15px; color: rgb(51, 51, 51);">集合</span><span style="font-size: 15px; color: rgb(51, 51, 51);">是一种特殊类型的资源，它包含了相同类型子资源的列表。例如，目录是文件资源的集合。集合的资源 ID 叫做集合 ID。</span>
+
+<span style="font-size: 15px; color: rgb(51, 51, 51);">资源名称由集合 ID 和资源 ID 按层次组织形成，并以斜杠（/）分隔。如果资源包含子资源，子资源名称的格式是父资源名称后面加上子资源 ID，同样地使用斜杠分隔。</span>
+
+<span style="font-size: 15px; color: rgb(51, 51, 51);">例 1：一个存储服务具有 </span><span style="font-size: 13px; color: rgb(199, 37, 78);">buckets</span><span style="font-size: 15px; color: rgb(51, 51, 51);"> 集合，每个 bucket 具有 </span><span style="font-size: 13px; color: rgb(199, 37, 78);">objects</span><span style="font-size: 15px; color: rgb(51, 51, 51);"> 集合：</span>
+
+| <span style="color: rgb(0, 0, 0);">API 服务名</span> | <span style="color: rgb(0, 0, 0);">集合 ID</span> | <span style="color: rgb(0, 0, 0);">资源 ID</span> | <span style="color: rgb(0, 0, 0);">集合 ID</span> | <span style="color: rgb(0, 0, 0);">资源 ID</span> |
+| --- | --- | --- | --- | --- |
+| <span style="color: rgb(0, 0, 0);">//storage.googleapis.com</span> | <span style="color: rgb(0, 0, 0);">/buckets</span> | <span style="color: rgb(0, 0, 0);">/bucket-id</span> | <span style="color: rgb(0, 0, 0);">/objects</span> | <span style="color: rgb(0, 0, 0);">/object-id</span> |
+
+<span style="font-size: 15px; color: rgb(51, 51, 51);">例 2：一个具有 </span><span style="font-size: 13px; color: rgb(199, 37, 78);">users</span><span style="font-size: 15px; color: rgb(51, 51, 51);"> 集合的邮件服务，每个用户具有 </span><span style="font-size: 13px; color: rgb(199, 37, 78);">settings</span><span style="font-size: 15px; color: rgb(51, 51, 51);"> 子资源， </span><span style="font-size: 13px; color: rgb(199, 37, 78);">settings</span><span style="font-size: 15px; color: rgb(51, 51, 51);"> 子资源具有 </span><span style="font-size: 13px; color: rgb(199, 37, 78);">customFrom</span><span style="font-size: 15px; color: rgb(51, 51, 51);"> 和另外的子资源：</span>
+
+| <span style="color: rgb(0, 0, 0);">API 服务名</span> | <span style="color: rgb(0, 0, 0);">集合 ID</span> | <span style="color: rgb(0, 0, 0);">资源 ID</span> | <span style="color: rgb(0, 0, 0);">资源 ID</span> | <span style="color: rgb(0, 0, 0);">资源 ID</span> |
+| --- | --- | --- | --- | --- |
+| <span style="color: rgb(0, 0, 0);">//mail.googleapis.com</span> | <span style="color: rgb(0, 0, 0);">/users</span> | <span style="color: rgb(0, 0, 0);">/name@example.com</span> | <span style="color: rgb(0, 0, 0);">/settings</span> | <span style="color: rgb(0, 0, 0);">/customFrom</span> |
+
+<span style="font-size: 15px; color: rgb(51, 51, 51);">API 设计者可以为资源和集合 ID 选择任何可接受的值，只要它们在资源层次结构中是唯一的即可。你可以在下面找到有关选择适当资源和集合 ID 的更多指南。</span>
+
+<span style="font-size: 28px; color: rgb(51, 51, 51);">完整资源名</span>
+
+* * *
+
+<span style="font-size: 15px; color: rgb(51, 51, 51);">无协议（scheme-less） </span>[<span style="font-size: 15px; color: rgb(0, 154, 97);">URI</span>](http://tools.ietf.org/html/rfc3986)<span style="font-size: 15px; color: rgb(51, 51, 51);">由</span> [<span style="font-size: 15px; color: rgb(0, 154, 97);">兼容 DNS</span>](http://tools.ietf.org/html/rfc1035)<span style="font-size: 15px; color: rgb(51, 51, 51);"> 的 API 服务名和资源路径组成。资源路径也称为</span><span style="font-size: 15px; color: rgb(51, 51, 51);">相对资源名</span><span style="font-size: 15px; color: rgb(51, 51, 51);">。例如：</span>
+
+<span style="font-size: 16px; color: rgb(221, 17, 68);">"//library.googleapis.com/shelves/shelf1/books/book2"</span>
+
+<span style="font-size: 15px; color: rgb(51, 51, 51);">API 服务名用于客户端定位 API 服务端点，如果只为内部服务，它</span><span style="font-size: 15px; color: rgb(51, 51, 51);">可以（may）</span><span style="font-size: 15px; color: rgb(51, 51, 51);">是假的 DNS 名。如果 API 服务名在上下文中显而易见的话则会经常使用相对资源名。</span>
+
+<span style="font-size: 28px; color: rgb(51, 51, 51);">相对资源名</span>
+
+<span style="font-size: 15px; color: rgb(51, 51, 51);">没有斜杠（/）开头的 </span>[<span style="font-size: 15px; color: rgb(0, 154, 97);">URI 路径</span>](http://tools.ietf.org/html/rfc3986#appendix-A)<span style="font-size: 15px; color: rgb(51, 51, 51);">标识了 API 服务中的资源。例如：</span>
+
+<span style="font-size: 13px; color: rgb(221, 17, 68);">"shelves/shelf1/books/book2"</span>
+
+<span style="font-size: 28px; color: rgb(51, 51, 51);">资源 ID</span>
+
+<span style="font-size: 15px; color: rgb(51, 51, 51);">使用非空的 </span>[<span style="font-size: 15px; color: rgb(0, 154, 97);">URI 段</span>](http://tools.ietf.org/html/rfc3986#appendix-A)<span style="font-size: 15px; color: rgb(51, 51, 51);">标识其父资源中的资源。请看上面的例子。</span>
+
+<span style="font-size: 15px; color: rgb(51, 51, 51);">资源名称后面跟随的资源 ID </span><span style="font-size: 15px; color: rgb(51, 51, 51);">可以（may）</span><span style="font-size: 15px; color: rgb(51, 51, 51);"> 具有不只一个 URI 段，例如：</span>
+
+| <span style="color: rgb(0, 0, 0);">集合 ID</span> | <span style="color: rgb(0, 0, 0);">资源 ID</span> |
+| --- | --- |
+| <span style="color: rgb(0, 0, 0);">files</span> | <span style="color: rgb(0, 0, 0);">/source/py/parser.py</span> |
+
+<span style="font-size: 15px; color: rgb(51, 51, 51);">如果可以的话，API 服务</span><span style="font-size: 15px; color: rgb(51, 51, 51);">应该（should）</span><span style="font-size: 15px; color: rgb(51, 51, 51);">使用 URL 友好的资源 ID。资源 ID </span><span style="font-size: 15px; color: rgb(51, 51, 51);">必须（must）</span><span style="font-size: 15px; color: rgb(51, 51, 51);"> 明确地记录在文档中，不管它们是由客户端还是服务端分配的。例如，文件名一般由客户端分配，而邮件信息 ID 一般由服务端分配。</span>
+
+<span style="font-size: 28px; color: rgb(51, 51, 51);">集合 ID</span>
+
+<span style="font-size: 15px; color: rgb(51, 51, 51);">使用非空的 </span>[<span style="font-size: 15px; color: rgb(0, 154, 97);">URI 段</span>](http://tools.ietf.org/html/rfc3986#appendix-A)<span style="font-size: 15px; color: rgb(51, 51, 51);">标识其父资源中的资源集合。请看上面的例子。</span>
+
+<span style="font-size: 15px; color: rgb(51, 51, 51);">因为集合 ID 经常出现在生成的客户端库中，它们 </span><span style="font-size: 15px; color: rgb(51, 51, 51);">必须（must）</span><span style="font-size: 15px; color: rgb(51, 51, 51);"> 符合以下要求：</span>
+
+*   必须（must） 是合法的 C/C++ 标识符
+*   必须（must） 是复数形式的首字母小写的驼峰命名
+*   必须（must） 使用清晰简明的英语词汇
+*   应该（should） 避免或限定过于笼统的术语。例如：<span style="font-size: 13px; color: rgb(199, 37, 78);">RowValue</span> 优于 <span style="font-size: 13px; color: rgb(199, 37, 78);">Value</span>。除非明确定义，否则 应该（should） 避免使用如下术语：
+
+*   Element
+*   Entry
+*   Instance
+*   Item
+*   Object
+*   Resource
+*   Type
+*   Value
+
+<span style="font-size: 28px; color: rgb(51, 51, 51);">资源名 vs URL</span>
+
+<span style="font-size: 15px; color: rgb(51, 51, 51);">完整的资源名类似普通的 URL，但它们并不相同。同样的资源能够通过不同版本或不同协议的 API 来暴露出去。完整的资源名并没有指定这些信息，所以必须将它映射到特定的协议和 API 版本上才能直接地使用。</span>
+
+<span style="font-size: 15px; color: rgb(51, 51, 51);">为了通过 REST API 使用完整的资源名，</span><span style="font-size: 15px; color: rgb(51, 51, 51);">必须（must）</span><span style="font-size: 15px; color: rgb(51, 51, 51);"> 使用如下方法将其映射为 REST URL：在服务名前添加 HTTPS 协议、在资源路径前添加 API 主版本号、将资源路径进行 URL 转义。例如：</span>
+
+<span style="font-size: 13px; color: rgb(51, 51, 51);">/</span><span style="font-size: 13px; color: rgb(0, 153, 38);">/ 这是日历事件的资源名"//calendar.googleapis.com/users/john smith/events/123"// 这是对应的 HTTP URL"[https://calendar.googleapis.com/v](https://calendar.googleapis.com/v)</span><span style="font-size: 13px; color: rgb(51, 51, 51);">3/users/john%</span><span style="font-size: 13px; color: rgb(0, 128, 128);">20</span><span style="font-size: 13px; color: rgb(51, 51, 51);">smith/events/</span><span style="font-size: 13px; color: rgb(0, 128, 128);">123</span><span style="font-size: 13px; color: rgb(221, 17, 68);">"</span>
+
+<span style="font-size: 28px; color: rgb(51, 51, 51);">资源名做为字符串</span>
+
+<span style="font-size: 15px; color: rgb(51, 51, 51);">除非有向后兼容的问题，Google API </span><span style="font-size: 15px; color: rgb(51, 51, 51);">必须（must）</span><span style="font-size: 15px; color: rgb(51, 51, 51);"> 使用字符串来表示资源名。资源名 </span><span style="font-size: 15px; color: rgb(51, 51, 51);">应该(should)</span><span style="font-size: 15px; color: rgb(51, 51, 51);"> 像普通文件路径那样处理，并且不支持</span>[<span style="font-size: 15px; color: rgb(0, 154, 97);">百分号编码</span>](https://zh.wikipedia.org/zh-hans/%E7%99%BE%E5%88%86%E5%8F%B7%E7%BC%96%E7%A0%81)<span style="font-size: 15px; color: rgb(51, 51, 51);">。</span>
+
+<span style="font-size: 15px; color: rgb(51, 51, 51);">对于资源定义，第一个字段 </span><span style="font-size: 15px; color: rgb(51, 51, 51);">应该（should）</span><span style="font-size: 15px; color: rgb(51, 51, 51);"> 是资源名称的字符串字段，它 </span><span style="font-size: 15px; color: rgb(51, 51, 51);">应该（should）</span><span style="font-size: 15px; color: rgb(51, 51, 51);"> 叫作 </span><span style="font-size: 13px; color: rgb(199, 37, 78);">name</span><span style="font-size: 15px; color: rgb(51, 51, 51);">。</span>
+
+<span style="font-size: 15px; color: rgb(51, 51, 51);">注意</span><span style="font-size: 15px; color: rgb(51, 51, 51);">：像  </span><span style="font-size: 13px; color: rgb(199, 37, 78);">display_name</span><span style="font-size: 15px; color: rgb(51, 51, 51);">、</span><span style="font-size: 13px; color: rgb(199, 37, 78);">first_name</span><span style="font-size: 15px; color: rgb(51, 51, 51);">、</span><span style="font-size: 13px; color: rgb(199, 37, 78);">last_name</span><span style="font-size: 15px; color: rgb(51, 51, 51);">、</span><span style="font-size: 13px; color: rgb(199, 37, 78);">full_name</span><span style="font-size: 15px; color: rgb(51, 51, 51);">  这种与名字相关的字段 </span><span style="font-size: 15px; color: rgb(51, 51, 51);">应该（should）</span><span style="font-size: 15px; color: rgb(51, 51, 51);"> 给出定义来避免混乱。</span>
+
+

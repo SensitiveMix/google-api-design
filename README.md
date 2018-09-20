@@ -67,16 +67,17 @@ REST Google API 的标准方法（也被称为REST方法）包括List, Get, Crea
 
 注意： 自定义动词并不意味着创建自定义HTTP动词来实现自定义方法。对于基于HTTP的API，自定义动词会被映射到合适的HTTP动词上。
 
-设计流程
-The Style Guide suggests taking the following steps when designing resource- oriented APIs (more details are covered in specific sections below):
+<span style="font-size: 21px; color: rgb(51, 51, 51);">设计流程</span>
 
-本指南建议按照下列步骤来设计面向资源的API（更多细节会在以后具体的章节所描述）。
+<span style="font-size: 15px; color: rgb(51, 51, 51);">The Style Guide suggests taking the following steps when designing resource- oriented APIs (more details are covered in specific sections below):</span>
 
-  ● 确定API提供的资源类型
-  ● 查明不同资源间的关系
-  ● 根据资源的类型和关系，决定资源名称的规范
-  ● 决定资源的范式 (schema)
-  ● 为资源加上方法的最小集合
+<span style="font-size: 15px; color: rgb(51, 51, 51);">本指南建议按照下列步骤来设计面向资源的API（更多细节会在以后具体的章节所描述）。</span>
+
+*   确定API提供的资源类型
+*   查明不同资源间的关系
+*   根据资源的类型和关系，决定资源名称的规范
+*   决定资源的范式 (schema)
+*   为资源加上方法的最小集合
 
 资源 (Resources)
 

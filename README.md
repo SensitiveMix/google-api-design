@@ -148,7 +148,7 @@ _<span style="font-size: 15px; color: rgb(51, 51, 51);">pubsub.googleapis.com �
 
 <span style="font-size: 15px; color: rgb(51, 51, 51);">注意：</span><span style="font-size: 15px; color: rgb(51, 51, 51);"> 其它Pub/Sub API 实现可能采用不同的资源名称范式</span>
 
-<h3 id="3-Resource-Name"><code>资源名称</code></h3>
+<h1 id="3-Resource-Name"><code>资源名称</code></h1>
 
 <span style="font-size: 15px; color: rgb(51, 51, 51);">在面向资源的 API 中，</span><span style="font-size: 15px; color: rgb(51, 51, 51);">资源</span><span style="font-size: 15px; color: rgb(51, 51, 51);">是命名实体，</span><span style="font-size: 15px; color: rgb(51, 51, 51);">资源名称</span><span style="font-size: 15px; color: rgb(51, 51, 51);">是其标识符。每个资源 </span><span style="font-size: 15px; color: rgb(51, 51, 51);">必须（ MUST ）</span><span style="font-size: 15px; color: rgb(51, 51, 51);"> 有唯一的资源名称。资源名称由资源自己的 ID，任一父资源的 ID 及其 API 服务名称组成。下面我们将看一看资源 ID 和资源名是如何构成的。</span>
 

@@ -1,2 +1,2 @@
-# google-api-design
+# Google API Design
 Google API Documents Chinese Documents

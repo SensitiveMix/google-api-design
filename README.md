@@ -10,25 +10,29 @@ Google API Documents Chinese Documents
 
 <h1 id="1-Introduction"><code>简介</code></h1>
 
-前言
-这是一份适用于网络API的通用指南。本指南自2014 年起在Google 内部使用，并且是我们设计Cloud API 和其它Google API时所遵循的依据。我们将这份指南分享出来供外部的开发者参考，使我们之间的共同开发变得轻松。
+<span style="font-size: 24px; color: rgb(51, 51, 51);">前言</span>
 
-外部开发者可能会在设计配合Google Cloud Endpoints 使用的gRPC API 时觉得本指南尤其有用, 且我们强烈推荐此类开发者遵从这些设计原则。不过我们并不强求任何非谷歌的开发者遵循本原则并且你完全可以在不参照本指南的前提下使用Cloud Endpoints 和/或gRPC 。
+<span style="font-size: 15px; color: rgb(51, 51, 51);">这是一份适用于网络API的通用指南。本指南自2014 年起在Google 内部使用，并且是我们设计</span>[<span style="font-size: 15px; color: rgb(0, 154, 97);">Cloud API</span>](https://cloud.google.com/apis/docs/overview)<span style="font-size: 15px; color: rgb(51, 51, 51);"> 和其它</span>[<span style="font-size: 15px; color: rgb(0, 154, 97);">Google API</span>](https://cloud.google.com/apis/docs/overview)<span style="font-size: 15px; color: rgb(51, 51, 51);">时所遵循的依据。我们将这份指南分享出来供外部的开发者参考，使我们之间的共同开发变得轻松。</span>
 
-本指南对REST API 和RPC API 均为适用，并对gRPC API 有特别的关注。gPRC API 使用Protocol Buffers去定义API 表层和API Service Configuration去配置其API 服务，包括HTTP 映射，日志和监控。Google API 和gRPC Cloud Endpoints 使用HTTP 映射功能进行JSON/HTTP 到Protocol Buffers/RPC的转码。
+<span style="font-size: 15px; color: rgb(51, 51, 51);">外部开发者可能会在设计配合</span>[<span style="font-size: 15px; color: rgb(0, 154, 97);">Google Cloud Endpoints</span>](https://cloud.google.com/endpoints/docs/grpc)<span style="font-size: 15px; color: rgb(51, 51, 51);"> 使用的gRPC API 时觉得本指南尤其有用, 且我们强烈推荐此类开发者遵从这些设计原则。不过我们并不强求任何非谷歌的开发者遵循本原则并且你完全可以在不参照本指南的前提下使用Cloud Endpoints 和/或gRPC 。</span>
 
-本指南是一份不断变化的文档，不断被采用、接纳的新风格和设计模式会不断地被添加进来。在这种指导精神下，本指南不会终结且在追寻API 设计的艺术及匠心上将一直都会有进步空间。
+<span style="font-size: 15px; color: rgb(51, 51, 51);">本指南对REST API 和RPC API 均为适用，并对gRPC API 有特别的关注。gPRC API 使用</span>[<span style="font-size: 15px; color: rgb(0, 154, 97);">Protocol Buffers</span>](https://cloud.google.com/apis/design/proto3)<span style="font-size: 15px; color: rgb(51, 51, 51);">去定义API 表层和</span>[<span style="font-size: 15px; color: rgb(0, 154, 97);">API Service Configuration</span>](https://github.com/googleapis/googleapis)<span style="font-size: 15px; color: rgb(51, 51, 51);">去配置其API 服务，包括HTTP 映射，日志和监控。Google API 和gRPC Cloud Endpoints 使用HTTP 映射功能进行JSON/HTTP 到Protocol Buffers/RPC的</span>[<span style="font-size: 15px; color: rgb(0, 154, 97);">转码</span>](https://cloud.google.com/endpoints/docs/transcoding)<span style="font-size: 15px; color: rgb(51, 51, 51);">。</span>
 
-文档用语
-不同级别的要求类词语:
-  ● 绝对要求："MUST", "REQUIRED", "SHALL"
-  ● 绝对不要："MUST NOT", "SHALL NOT"
-  ● 一般应该："SHOULD", "RECOMMENDED"
-  ● 一般不要："SHOULD NOT"
-  ● 可能，可选 "MAY", "OPTIONAL"
+<span style="font-size: 15px; color: rgb(51, 51, 51);">本指南是一份不断变化的文档，不断被采用、接纳的新风格和设计模式会不断地被添加进来。在这种指导精神下，本指南不会终结且在追寻API 设计的艺术及匠心上将一直都会有进步空间。</span>
 
-在本文中使用解释参照其在RFC 2119中的描述。
-在本文档中，这些关键词由粗体高亮标示。
+<span style="font-size: 24px; color: rgb(51, 51, 51);">文档用语</span>
+
+<span style="font-size: 15px; color: rgb(51, 51, 51);">不同级别的要求类词语:</span>
+
+*   绝对要求："MUST", "REQUIRED", "SHALL"
+*   绝对不要："MUST NOT", "SHALL NOT"
+*   一般应该："SHOULD", "RECOMMENDED"
+*   一般不要："SHOULD NOT"
+*   可能，可选 "MAY", "OPTIONAL"
+
+<span style="font-size: 15px; color: rgb(51, 51, 51);">在本文中使用解释参照其在</span>[<span style="font-size: 15px; color: rgb(0, 154, 97);">RFC 2119</span>](https://www.ietf.org/rfc/rfc2119.txt)<span style="font-size: 15px; color: rgb(51, 51, 51);">中的描述。</span>
+
+<span style="font-size: 15px; color: rgb(51, 51, 51);">在本文档中，这些关键词由</span><span style="font-size: 15px; color: rgb(51, 51, 51);">粗体</span><span style="font-size: 15px; color: rgb(51, 51, 51);">高亮标示。</span>
 
 <h1 id="2-Resource-Oriented-Design"><code>面向资源的设计</code></h1>
 

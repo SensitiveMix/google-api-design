@@ -5,6 +5,16 @@ Google API Documents Chinese Documents
 1. [简介](#1-Introduction)
 2. [面向资源的设计](#2-Resource-Oriented-Design)
 3. [资源名称](#3-Resource-Name)
+4. [标准方法](#4-Standard-Methods)
+5. [自定义方法](#5-Custom-Methods)
+6. [错误处理](#6-Errors)
+7. [命名规范](#7Naming-Conventions)
+8. [设计模式](#8Common-Design-Patterns)
+9. [使用 Proto3](#9Protocol-Buffers-v3)
+10. [版本管理](#10Versioning)
+11. [兼容性](#11Compatibility)
+12. [目录结构](#12Directory-Structure)
+13. [文件结构](#13File-Structure)
 
 
 

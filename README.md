@@ -14,7 +14,7 @@ Google API Documents Chinese Documents
 10. [版本管理](#10-Versioning)
 11. [兼容性](#11-Compatibility)
 12. [目录结构](#12-Directory-Structure)
-13. [文件结构 grpc]()
+13. [文件结构grpc](#grpc)
 
 
 
